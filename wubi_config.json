@@ -1,9 +1,0 @@
-{
-  "activation_hotkey": "ctrl+shift+w",
-  "candidates_per_page": 9,
-  "wubi_table_path": null,
-  "user_dict_path": "user_dict.json",
-  "auto_commit_single": true,
-  "show_status_window": true,
-  "theme": "default"
-}
