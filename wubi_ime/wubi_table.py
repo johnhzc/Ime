@@ -25,10 +25,25 @@ class WubiTable:
         self._load(data_path)
     
     def _load(self, data_path: Optional[str] = None):
-        """加载五笔编码表"""
+        """加载五笔编码表，兼容 PyInstaller 打包环境"""
         if data_path is None:
-            module_dir = os.path.dirname(os.path.abspath(__file__))
-            data_path = os.path.join(module_dir, "data", "wubi_86.json")
+            # PyInstaller 打包环境：资源文件在 sys._MEIPASS 中
+            if hasattr(sys, '_MEIPASS'):
+                base_dir = sys._MEIPASS
+                # 尝试多个可能的路径
+                candidates = [
+                    os.path.join(base_dir, "wubi_ime", "data", "wubi_86.json"),
+                    os.path.join(base_dir, "data", "wubi_86.json"),
+                ]
+                for c in candidates:
+                    if os.path.exists(c):
+                        data_path = c
+                        break
+            
+            # 开发环境：从当前模块所在目录查找
+            if data_path is None:
+                module_dir = os.path.dirname(os.path.abspath(__file__))
+                data_path = os.path.join(module_dir, "data", "wubi_86.json")
         
         with open(data_path, 'r', encoding='utf-8') as f:
             self.char_to_code = json.load(f)
