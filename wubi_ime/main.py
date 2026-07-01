@@ -67,9 +67,8 @@ class WubiIME:
         Returns:
             (是否消耗按键, 要输出的字符)
         """
-        # Check activation hotkey
-        activation_hotkey = self.config.get("activation_hotkey", "ctrl+shift+w")
-        if key.lower() == activation_hotkey.lower():
+        # Check activation hotkey (keyboard_handler sends 'hotkey' when detected)
+        if key.lower() == 'hotkey':
             self._on_activation_hotkey()
             return True, None
         
@@ -120,13 +119,17 @@ class WubiIME:
         
         elif action == Action.SUBMIT:
             consumed = True
-            candidates = self.engine.current_candidates or []
-            if candidates:
-                self._send_output(candidates[0])
+            # Engine may have already cleared and provided the candidate in data
+            if data:
+                self._send_output(data)
             else:
-                code = self.engine.current_code
-                if code:
-                    self._send_output(code)
+                candidates = self.engine.current_candidates or []
+                if candidates:
+                    self._send_output(candidates[0])
+                else:
+                    code = self.engine.current_code
+                    if code:
+                        self._send_output(code)
             self.engine.clear()
             self._update_ui()
         
@@ -155,7 +158,7 @@ class WubiIME:
         page_info = self.engine.get_page_info()
         
         if page_info and isinstance(page_info, tuple) and len(page_info) >= 2:
-            page, total_pages = page_info[0], page_info[1]
+            page, total_pages = page_info[0] + 1, page_info[1]
         else:
             page, total_pages = 1, 1
         
@@ -181,21 +184,21 @@ class WubiIME:
     def _send_output(self, text: str):
         """发送输出到当前应用程序
         
-        使用 pywin32 的 SendInput 或 keyboard 库的 write 功能。
-        支持发送中文字符。
+        使用 pynput Controller 或 ctypes SendInput 发送 Unicode 文本。
         """
         if not text:
             return
         
-        # Try using keyboard library first
+        # 使用 pynput Controller 发送文本（最可靠的方式）
         try:
-            import keyboard
-            keyboard.write(text)
+            from pynput.keyboard import Controller
+            controller = Controller()
+            controller.type(text)
             return
         except Exception:
             pass
         
-        # Fallback to SendInput via ctypes
+        # Fallback: ctypes SendInput 发送 Unicode
         try:
             import ctypes
             from ctypes import wintypes
@@ -212,14 +215,12 @@ class WubiIME:
                     ("dwExtraInfo", wintypes.ULONG_PTR),
                 ]
             
-            # Define INPUT union
-            class INPUT_I(ctypes.Union):
-                _fields_ = [("ki", KEYBDINPUT)]
-            
-            # Define INPUT structure
+            # Define INPUT structure with KEYBDINPUT directly
             class INPUT(ctypes.Structure):
-                _fields_ = [("type", wintypes.DWORD), ("_input", INPUT_I)]
-                _anonymous_ = [("_input",)]
+                _fields_ = [
+                    ("type", wintypes.DWORD),
+                    ("ki", KEYBDINPUT),
+                ]
             
             # Send each character as Unicode
             inputs = []
