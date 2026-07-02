@@ -1,27 +1,28 @@
-"""全局键盘监听模块（Win11 防冲突版）
+"""全局键盘监听模块（keyboard 库，unhook/rehook 防递归）
 
-核心策略：
-- 只在输入法激活时拦截编码键（a-z）
-- 发送输出前暂停钩子，发送后恢复（避免递归死循环）
-- 系统输入法切换键（Ctrl+Shift, Win+Space）始终不拦截
-- 所有其他键正常传递
+使用 keyboard 库的 suppress=True 拦截编码键，
+发送输出前通过 unhook 取消钩子，发送后重新注册，
+彻底避免 SendInput 触发递归死循环。
+
+同时兼容系统输入法切换：
+- Ctrl+Shift、Win+Space、Alt+Shift 等系统输入法热键不拦截
+- 确保用户可以在系统输入法之间正常切换
 """
 
 import threading
-from typing import Callable, Optional, Set
+import time
+from typing import Callable, Optional
 
 try:
     import keyboard as _keyboard
 except ImportError:
     _keyboard = None
 
-
 class KeyboardHandler:
-    """全局键盘监听器（Win11 防冲突）"""
+    """全局键盘监听器（unhook/rehook 防递归版）"""
     
-    # 需要拦截的编码键（小写）
     ENCODING_KEYS = set('abcdefghijklmnopqrstuvwxyz')
-    # 控制键映射
+    DIGIT_KEYS = set('123456789')
     KEY_MAP = {
         'space': 'space',
         'enter': 'enter',
@@ -42,10 +43,8 @@ class KeyboardHandler:
         self._is_running = False
         self._lock = threading.Lock()
         self._hook_id = None
-        self._paused = False  # 发送输出时暂停钩子
         
     def set_callback(self, callback: Callable[[str], bool]):
-        """设置按键处理回调"""
         self._callback = callback
     
     def start(self):
@@ -70,28 +69,29 @@ class KeyboardHandler:
                 self._hook_id = None
             self._is_running = False
     
-    def pause(self):
-        """暂停监听（发送输出时调用，防止递归）"""
-        self._paused = True
+    def unhook(self):
+        """临时取消键盘钩子（发送输出前调用）"""
+        with self._lock:
+            if self._hook_id is not None:
+                try:
+                    _keyboard.unhook(self._hook_id)
+                except Exception:
+                    pass
+                self._hook_id = None
+            # 短暂等待，确保 C 层钩子已解除
+            time.sleep(0.005)
     
-    def resume(self):
-        """恢复监听"""
-        self._paused = False
+    def rehook(self):
+        """重新注册键盘钩子（发送输出后调用）"""
+        with self._lock:
+            if self._hook_id is None and self._is_running:
+                self._hook_id = _keyboard.hook(self._on_key_event, suppress=True)
     
     def _on_key_event(self, event):
-        """处理键盘事件
-        
-        返回 True 表示按键继续传播（不拦截）
-        返回 False 表示按键被拦截（不传播）
-        """
-        # 暂停期间（发送输出时）不处理任何事件
-        if self._paused:
-            return True
-        
+        """处理键盘事件"""
         if not self._callback or not self._is_running:
             return True
         
-        # 只处理按键按下事件
         if event.event_type != 'down':
             return True
         
@@ -102,41 +102,36 @@ class KeyboardHandler:
         key_lower = key_name.lower()
         
         try:
-            # ===== 1. 系统输入法切换快捷键：绝不拦截 =====
-            # Ctrl+Shift 是系统输入法切换
+            # 1. 系统输入法切换快捷键：绝不拦截
             if _keyboard.is_pressed('ctrl') and _keyboard.is_pressed('shift'):
                 return True
-            # Win+Space 是 Win11 输入法切换
             if _keyboard.is_pressed('win') and key_lower == 'space':
                 return True
-            # Alt+Shift 也是系统输入法切换
             if _keyboard.is_pressed('alt') and _keyboard.is_pressed('shift'):
                 return True
             
-            # ===== 2. Ctrl+Shift+W 热键：检测并拦截 =====
+            # 2. Ctrl+Shift+W 热键
             if self._is_hotkey_pressed(key_lower):
                 consumed = self._callback('hotkey')
-                return not consumed  # consumed=True -> 不传播
+                return not consumed
             
-            # ===== 3. 单独 Shift 键：切换中英文 =====
+            # 3. 单独 Shift
             if key_lower == 'shift':
-                # 只处理单独的 Shift（不和其他修饰键组合）
                 if not _keyboard.is_pressed('ctrl') and not _keyboard.is_pressed('alt') and not _keyboard.is_pressed('win'):
                     consumed = self._callback('shift')
                     return not consumed
                 return True
             
-            # ===== 4. 忽略所有修饰键组合 =====
+            # 4. 忽略修饰键组合
             if _keyboard.is_pressed('ctrl') or _keyboard.is_pressed('alt') or _keyboard.is_pressed('win'):
                 return True
             
-            # ===== 5. 编码键或控制键：交给回调 =====
+            # 5. 编码键或控制键
             mapped_key = self.KEY_MAP.get(key_lower, key_lower)
-            if mapped_key in self.ENCODING_KEYS or mapped_key in self.KEY_MAP.values():
+            if mapped_key in self.ENCODING_KEYS or mapped_key in self.DIGIT_KEYS or mapped_key in self.KEY_MAP.values():
                 consumed = self._callback(mapped_key)
-                return not consumed  # 不传播（被拦截）或传播（未拦截）
+                return not consumed
             
-            # ===== 6. 其他键：正常传播 =====
             return True
             
         except Exception as e:
@@ -144,7 +139,6 @@ class KeyboardHandler:
             return True
     
     def _is_hotkey_pressed(self, key_lower: str) -> bool:
-        """检查是否按下了 Ctrl+Shift+W"""
         try:
             return (_keyboard.is_pressed('ctrl') and 
                     _keyboard.is_pressed('shift') and 

@@ -1,7 +1,8 @@
-"""五笔输入法主程序（Win11 优化版）
+"""五笔输入法主程序（keyboard 库，unhook/rehook 防递归版）
 
-使用纯 tkinter 实现状态窗口，不依赖 pystray。
-添加启动确认对话框，让用户直接确认程序已启动。
+使用 keyboard 库的 suppress=True 拦截编码键，
+发送输出前通过 unhook 取消钩子，发送后重新注册，
+彻底避免 SendInput 触发递归死循环。
 """
 
 import sys
@@ -22,7 +23,7 @@ from .config import Config
 
 
 class WubiIME:
-    """五笔输入法主类"""
+    """五笔输入法主类（unhook/rehook 防递归版）"""
     
     def __init__(self):
         self.config = Config()
@@ -32,7 +33,6 @@ class WubiIME:
         self.status_window = StatusWindow(on_click=self._on_status_click)
         self._running = False
         self._lock = threading.Lock()
-        self._tk_root = None
         
     def _on_candidate_select(self, index: int):
         """候选字选择回调"""
@@ -44,16 +44,23 @@ class WubiIME:
             self._update_ui()
     
     def _on_key(self, key: str) -> bool:
-        """键盘事件处理回调"""
+        """键盘事件处理回调
+        
+        Returns:
+            True: 已消耗此按键，不需要继续传播
+        """
         try:
             with self._lock:
+                # 检测热键 Ctrl+Shift+W
                 if key.lower() == 'hotkey':
                     self._on_activation_hotkey()
                     return True
                 
+                # 如果输入法未激活，不消耗按键
                 if not self.engine.is_active():
                     return False
                 
+                # 处理按键
                 result = self.engine.process_key(key)
                 if result is None:
                     return False
@@ -68,6 +75,7 @@ class WubiIME:
                 if action == Action.ADD_KEY:
                     consumed = True
                     self._update_ui()
+                
                 elif action == Action.SELECT_CANDIDATE:
                     consumed = True
                     candidate = None
@@ -80,13 +88,16 @@ class WubiIME:
                         self._send_output(candidate)
                     self.engine.clear()
                     self._update_ui()
+                
                 elif action == Action.DELETE:
                     consumed = True
                     self._update_ui()
+                
                 elif action == Action.CANCEL:
                     consumed = True
                     self.engine.clear()
                     self.candidate_window.hide()
+                
                 elif action == Action.SUBMIT:
                     consumed = True
                     if data:
@@ -101,16 +112,20 @@ class WubiIME:
                                 self._send_output(code)
                     self.engine.clear()
                     self._update_ui()
+                
                 elif action == Action.SWITCH_MODE:
                     consumed = True
                     self.engine.toggle_mode()
                     self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
+                
                 elif action == Action.PAGE_UP:
                     consumed = True
                     self._update_ui()
+                
                 elif action == Action.PAGE_DOWN:
                     consumed = True
                     self._update_ui()
+                
                 elif action == Action.IGNORE:
                     consumed = False
                 
@@ -148,17 +163,18 @@ class WubiIME:
             print(f"UI 更新错误: {e}")
     
     def _send_output(self, text: str):
-        """发送输出到当前应用程序（Win32 SendInput）
+        """发送输出到当前应用程序
         
-        关键：发送前先暂停键盘钩子，防止递归死循环
+        关键：发送前先取消键盘钩子，防止 SendInput 触发递归死循环。
         """
         if not text:
             return
         
-        # 暂停键盘监听，防止 SendInput 触发的按键事件重新进入钩子
-        self.keyboard.pause()
+        # 1. 取消键盘钩子（防止 SendInput 触发的按键事件重新进入钩子）
+        self.keyboard.unhook()
         
         try:
+            # 2. 使用 SendInput 发送 Unicode 文本
             import ctypes
             from ctypes import wintypes
             
@@ -205,9 +221,8 @@ class WubiIME:
         except Exception as e:
             print(f"发送输出失败: {e}")
         finally:
-            # 恢复键盘监听（必须恢复，否则后续输入无法捕获）
-            self.keyboard.resume()
-
+            # 3. 重新注册键盘钩子
+            self.keyboard.rehook()
     
     def _on_activation_hotkey(self):
         """激活/关闭输入法"""
@@ -227,10 +242,6 @@ class WubiIME:
         """状态窗口点击回调"""
         self._on_activation_hotkey()
     
-    def _on_exit(self):
-        """退出程序"""
-        self._running = False
-    
     def _show_startup_dialog(self):
         """显示启动确认对话框"""
         root = tk.Tk()
@@ -243,7 +254,8 @@ class WubiIME:
             "按 Ctrl+Shift+W 切换输入法状态。\n"
             "按 Shift 切换中英文。\n\n"
             "提示：Windows 11 下建议以管理员权限运行，\n"
-            "否则可能无法在某些程序中输入。"
+            "否则可能无法在某些程序中输入。\n\n"
+            "系统输入法切换（Ctrl+Shift, Win+Space）已兼容。"
         )
         
         messagebox.showinfo("五笔输入法", message)
@@ -253,9 +265,13 @@ class WubiIME:
         """启动输入法"""
         print("=" * 50)
         print("五笔输入法启动中...")
-        print("按 Ctrl+Shift+W 激活/关闭输入法")
-        print("按 Shift 切换中英文模式")
         print("=" * 50)
+        print()
+        print("使用说明：")
+        print("  按 Ctrl+Shift+W 激活/关闭输入法")
+        print("  按 Shift 切换中英文模式")
+        print("  系统输入法切换（Ctrl+Shift, Win+Space）已兼容")
+        print()
         
         try:
             # 设置键盘回调
