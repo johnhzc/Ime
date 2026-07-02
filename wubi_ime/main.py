@@ -148,9 +148,15 @@ class WubiIME:
             print(f"UI 更新错误: {e}")
     
     def _send_output(self, text: str):
-        """发送输出到当前应用程序（Win32 SendInput）"""
+        """发送输出到当前应用程序（Win32 SendInput）
+        
+        关键：发送前先暂停键盘钩子，防止递归死循环
+        """
         if not text:
             return
+        
+        # 暂停键盘监听，防止 SendInput 触发的按键事件重新进入钩子
+        self.keyboard.pause()
         
         try:
             import ctypes
@@ -177,14 +183,14 @@ class WubiIME:
             for ch in text:
                 scan_code = ord(ch)
                 
-                # KEYDOWN
+                # KEYDOWN (KEYEVENTF_UNICODE = 0x0004)
                 ki = KEYBDINPUT(0, scan_code, 0x0004, 0, 0)
                 inp = INPUT()
                 inp.type = 1
                 inp.ki = ki
                 inputs.append(inp)
                 
-                # KEYUP
+                # KEYUP (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP = 0x0006)
                 ki = KEYBDINPUT(0, scan_code, 0x0004 | 0x0002, 0, 0)
                 inp = INPUT()
                 inp.type = 1
@@ -198,6 +204,10 @@ class WubiIME:
                 
         except Exception as e:
             print(f"发送输出失败: {e}")
+        finally:
+            # 恢复键盘监听（必须恢复，否则后续输入无法捕获）
+            self.keyboard.resume()
+
     
     def _on_activation_hotkey(self):
         """激活/关闭输入法"""
