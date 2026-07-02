@@ -1,71 +1,39 @@
-"""五笔输入法主程序（Win11 兼容版）
+"""五笔输入法主程序（Win11 优化版）
 
-整合所有模块，提供输入法的主入口。
-专门针对 Windows 11 的兼容性进行了优化：
-- 使用 keyboard 库替代 pynput（更稳定的 Win32 钩子）
-- 使用 pystray 系统托盘图标
-- 正确的 Unicode SendInput 输出
-- 管理员权限检测和提示
-- 详细的错误日志
+使用纯 tkinter 实现状态窗口，不依赖 pystray。
+添加启动确认对话框，让用户直接确认程序已启动。
 """
 
 import sys
 import os
 import time
 import threading
-import ctypes
 import traceback
-from typing import Optional, Tuple
+from typing import Optional
+
+import tkinter as tk
+from tkinter import messagebox
 
 from .engine import WubiEngine, Action
 from .keyboard_handler import KeyboardHandler
 from .ui.candidate_window import CandidateWindow, get_cursor_position
-from .ui.tray_icon import get_tray_icon
+from .ui.status_window import StatusWindow
 from .config import Config
 
 
 class WubiIME:
-    """五笔输入法主类（Win11 兼容）"""
+    """五笔输入法主类"""
     
     def __init__(self):
         self.config = Config()
         self.engine = WubiEngine()
         self.keyboard = KeyboardHandler()
         self.candidate_window = CandidateWindow(on_select=self._on_candidate_select)
-        self.tray_icon = get_tray_icon(
-            on_toggle=self._on_toggle_mode,
-            on_exit=self._on_exit
-        )
+        self.status_window = StatusWindow(on_click=self._on_status_click)
         self._running = False
         self._lock = threading.Lock()
+        self._tk_root = None
         
-        # 日志
-        self._setup_logging()
-        
-    def _setup_logging(self):
-        """设置日志文件"""
-        log_dir = os.path.join(os.path.expanduser("~"), ".wubi_ime")
-        os.makedirs(log_dir, exist_ok=True)
-        self.log_file = os.path.join(log_dir, "wubi_ime.log")
-        
-    def _log(self, msg: str):
-        """写入日志"""
-        try:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
-        except Exception:
-            pass
-    
-    def _log_exception(self, e: Exception):
-        """写入异常日志"""
-        try:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} ERROR: {e}\n")
-                f.write(traceback.format_exc())
-                f.write("\n")
-        except Exception:
-            pass
-    
     def _on_candidate_select(self, index: int):
         """候选字选择回调"""
         with self._lock:
@@ -76,25 +44,17 @@ class WubiIME:
             self._update_ui()
     
     def _on_key(self, key: str) -> bool:
-        """键盘事件处理回调
-        
-        Returns:
-            是否消耗此按键
-        """
+        """键盘事件处理回调"""
         try:
             with self._lock:
-                # Check activation hotkey
                 if key.lower() == 'hotkey':
                     self._on_activation_hotkey()
                     return True
                 
-                # If engine is not active, don't consume keys
                 if not self.engine.is_active():
                     return False
                 
-                # Process key through engine
                 result = self.engine.process_key(key)
-                
                 if result is None:
                     return False
                 elif isinstance(result, tuple):
@@ -108,7 +68,6 @@ class WubiIME:
                 if action == Action.ADD_KEY:
                     consumed = True
                     self._update_ui()
-                
                 elif action == Action.SELECT_CANDIDATE:
                     consumed = True
                     candidate = None
@@ -121,16 +80,13 @@ class WubiIME:
                         self._send_output(candidate)
                     self.engine.clear()
                     self._update_ui()
-                
                 elif action == Action.DELETE:
                     consumed = True
                     self._update_ui()
-                
                 elif action == Action.CANCEL:
                     consumed = True
                     self.engine.clear()
                     self.candidate_window.hide()
-                
                 elif action == Action.SUBMIT:
                     consumed = True
                     if data:
@@ -145,27 +101,23 @@ class WubiIME:
                                 self._send_output(code)
                     self.engine.clear()
                     self._update_ui()
-                
                 elif action == Action.SWITCH_MODE:
                     consumed = True
                     self.engine.toggle_mode()
-                    self.tray_icon.set_chinese_mode(self.engine.is_chinese_mode())
-                
+                    self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
                 elif action == Action.PAGE_UP:
                     consumed = True
                     self._update_ui()
-                
                 elif action == Action.PAGE_DOWN:
                     consumed = True
                     self._update_ui()
-                
                 elif action == Action.IGNORE:
                     consumed = False
                 
                 return consumed
                 
         except Exception as e:
-            self._log_exception(e)
+            print(f"键盘事件处理错误: {e}")
             return False
     
     def _update_ui(self):
@@ -185,7 +137,6 @@ class WubiIME:
                 else:
                     page, total_pages = 1, 1
                 
-                # 获取光标位置
                 x, y = get_cursor_position()
                 
                 if not self.candidate_window.is_visible():
@@ -194,24 +145,19 @@ class WubiIME:
                 self.candidate_window.update_candidates(candidates, code, page, total_pages)
                 
         except Exception as e:
-            self._log_exception(e)
+            print(f"UI 更新错误: {e}")
     
     def _send_output(self, text: str):
-        """发送输出到当前应用程序（Win11 Unicode 兼容）"""
+        """发送输出到当前应用程序（Win32 SendInput）"""
         if not text:
             return
         
-        self._log(f"Sending output: {repr(text)}")
-        
         try:
-            # 使用 ctypes SendInput 发送 Unicode 字符
             import ctypes
             from ctypes import wintypes
             
             user32 = ctypes.windll.user32
-            kernel32 = ctypes.windll.kernel32
             
-            # 定义 KEYBDINPUT 结构
             class KEYBDINPUT(ctypes.Structure):
                 _fields_ = [
                     ("wVk", wintypes.WORD),
@@ -221,26 +167,24 @@ class WubiIME:
                     ("dwExtraInfo", ctypes.c_size_t),
                 ]
             
-            # 定义 INPUT 结构
             class INPUT(ctypes.Structure):
                 _fields_ = [
                     ("type", wintypes.DWORD),
                     ("ki", KEYBDINPUT),
                 ]
             
-            # 为每个 Unicode 字符发送按键事件
             inputs = []
             for ch in text:
                 scan_code = ord(ch)
                 
-                # KEYDOWN (KEYEVENTF_UNICODE = 0x0004)
+                # KEYDOWN
                 ki = KEYBDINPUT(0, scan_code, 0x0004, 0, 0)
                 inp = INPUT()
-                inp.type = 1  # INPUT_KEYBOARD
+                inp.type = 1
                 inp.ki = ki
                 inputs.append(inp)
                 
-                # KEYUP (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP = 0x0004 | 0x0002)
+                # KEYUP
                 ki = KEYBDINPUT(0, scan_code, 0x0004 | 0x0002, 0, 0)
                 inp = INPUT()
                 inp.type = 1
@@ -250,24 +194,10 @@ class WubiIME:
             if inputs:
                 n = len(inputs)
                 arr = (INPUT * n)(*inputs)
-                sent = user32.SendInput(n, ctypes.byref(arr), ctypes.sizeof(INPUT))
-                if sent != n:
-                    self._log(f"SendInput warning: sent {sent}/{n}")
-                else:
-                    self._log(f"SendInput success: {n} events")
-                    
+                user32.SendInput(n, ctypes.byref(arr), ctypes.sizeof(INPUT))
+                
         except Exception as e:
-            self._log(f"SendInput failed: {e}")
-            # Fallback: 尝试写入剪贴板（不太理想但可用）
-            try:
-                import win32clipboard
-                win32clipboard.OpenClipboard()
-                win32clipboard.EmptyClipboard()
-                win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
-                win32clipboard.CloseClipboard()
-                self._log("Fallback: text copied to clipboard")
-            except Exception:
-                pass
+            print(f"发送输出失败: {e}")
     
     def _on_activation_hotkey(self):
         """激活/关闭输入法"""
@@ -275,53 +205,47 @@ class WubiIME:
             if self.engine.is_active():
                 self.engine.deactivate()
                 self.candidate_window.hide()
-                self.tray_icon.set_active(False)
-                self._log("IME deactivated")
+                self.status_window.hide()
                 print("\n[五笔输入法已关闭]")
             else:
                 self.engine.activate()
-                self.tray_icon.set_active(True)
-                self._log("IME activated")
-                print("\n[五笔输入法已激活] Ctrl+Shift+W 关闭, Shift 切换中英文")
+                self.status_window.show()
+                self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
+                print("\n[五笔输入法已激活]")
     
-    def _on_toggle_mode(self):
-        """托盘图标切换回调"""
+    def _on_status_click(self):
+        """状态窗口点击回调"""
         self._on_activation_hotkey()
     
     def _on_exit(self):
-        """托盘图标退出回调"""
-        self._log("Exit requested from tray")
+        """退出程序"""
         self._running = False
     
-    def _check_admin(self) -> bool:
-        """检查是否以管理员权限运行"""
-        try:
-            return ctypes.windll.shell32.IsUserAnAdmin()
-        except Exception:
-            return False
+    def _show_startup_dialog(self):
+        """显示启动确认对话框"""
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        
+        message = (
+            "五笔输入法已启动！\n\n"
+            "状态窗口显示在屏幕右下角。\n"
+            "按 Ctrl+Shift+W 切换输入法状态。\n"
+            "按 Shift 切换中英文。\n\n"
+            "提示：Windows 11 下建议以管理员权限运行，\n"
+            "否则可能无法在某些程序中输入。"
+        )
+        
+        messagebox.showinfo("五笔输入法", message)
+        root.destroy()
     
     def start(self):
         """启动输入法"""
-        self._log("=" * 50)
-        self._log("WubiIME starting...")
-        self._log(f"Python: {sys.version}")
-        self._log(f"Platform: {sys.platform}")
-        
-        # 检查管理员权限
-        is_admin = self._check_admin()
-        self._log(f"Admin privileges: {is_admin}")
-        
-        if not is_admin:
-            print("⚠️ 警告：当前未以管理员权限运行")
-            print("   在 Windows 11 中，全局键盘监听需要管理员权限")
-            print("   建议：右键 WubiIME.exe → '以管理员身份运行'")
-            print()
-            self._log("WARNING: Running without admin privileges")
-        
+        print("=" * 50)
         print("五笔输入法启动中...")
         print("按 Ctrl+Shift+W 激活/关闭输入法")
         print("按 Shift 切换中英文模式")
-        print(f"日志文件: {self.log_file}")
+        print("=" * 50)
         
         try:
             # 设置键盘回调
@@ -329,64 +253,58 @@ class WubiIME:
             
             # 启动键盘监听
             self.keyboard.start()
-            self._log("Keyboard listener started")
+            print("✅ 键盘监听已启动")
             
-            # 启动系统托盘图标
-            self.tray_icon.start()
-            self._log("Tray icon started")
+            # 显示状态窗口
+            self.status_window.show()
+            self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
+            print("✅ 状态窗口已显示（右下角）")
             
-            # 激活输入法（默认开启）
+            # 默认激活输入法
             self.engine.activate()
-            self.tray_icon.set_active(True)
-            self.tray_icon.set_chinese_mode(self.engine.is_chinese_mode())
-            self._log("IME activated by default")
+            print("✅ 输入法已激活")
             
-            print("\n[五笔输入法已激活] 系统托盘图标已显示")
-            print("按 Ctrl+Shift+W 关闭输入法")
+            # 显示启动确认对话框
+            self._show_startup_dialog()
             
             self._running = True
+            print("\n输入法正在运行，按 Ctrl+C 退出...")
             
-            # 主循环（保持程序运行）
+            # 主循环
             while self._running:
                 time.sleep(0.1)
                 
         except Exception as e:
-            self._log_exception(e)
             print(f"\n❌ 启动失败: {e}")
-            print(f"请查看日志: {self.log_file}")
+            traceback.print_exc()
             raise
     
     def stop(self):
         """停止输入法"""
-        self._log("Stopping WubiIME...")
+        print("\n正在关闭输入法...")
         self._running = False
         
         try:
             self.keyboard.stop()
-            self._log("Keyboard listener stopped")
         except Exception as e:
-            self._log(f"Error stopping keyboard: {e}")
+            print(f"停止键盘监听出错: {e}")
         
         try:
             self.candidate_window.destroy()
-            self._log("Candidate window destroyed")
         except Exception:
             pass
         
         try:
-            self.tray_icon.stop()
-            self._log("Tray icon stopped")
+            self.status_window.destroy()
         except Exception:
             pass
         
         try:
             self.config.save()
-            self._log("Config saved")
         except Exception:
             pass
         
-        self._log("WubiIME stopped")
-        print("\n五笔输入法已关闭")
+        print("输入法已关闭")
 
 
 def main():
@@ -399,6 +317,7 @@ def main():
     except Exception as e:
         print(f"\n\n发生错误: {e}")
         traceback.print_exc()
+        input("\n按 Enter 键退出...")
     finally:
         ime.stop()
 
