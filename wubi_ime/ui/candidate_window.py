@@ -1,239 +1,252 @@
-"""候选窗口 UI
+"""候选窗口 UI（Win11 风格）
 
-使用 tkinter 实现五笔输入法的候选窗口。
+使用 tkinter 实现无边框、置顶、圆角的候选窗口，
+适配 Windows 11 的 DPI 缩放和 UI 风格。
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import font as tkfont
 import threading
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
+
 
 class CandidateWindow:
-    """候选窗口"""
+    """候选窗口（Win11 风格）"""
     
-    # 颜色配置
-    CODE_COLOR = "#1976D2"  # 编码颜色 (蓝色)
-    CANDIDATE_COLOR = "#333333"  # 候选字颜色
-    INDEX_COLOR = "#1976D2"  # 序号颜色 (蓝色)
-    FIRST_CANDIDATE_COLOR = "#D32F2F"  # 首选候选字颜色 (红色)
-    PAGE_COLOR = "#757575"  # 页码颜色 (灰色)
-    HIGHLIGHT_BG = "#E3F2FD"  # 高亮背景
-    BG_COLOR = "#FFFFFF"  # 窗口背景色
+    # Win11 风格配色
+    BG_COLOR = "#F3F3F3"
+    CODE_BG_COLOR = "#E8E8E8"
+    CODE_FG_COLOR = "#0078D4"
+    CANDIDATE_FG_COLOR = "#1F1F1F"
+    INDEX_FG_COLOR = "#0078D4"
+    PAGE_FG_COLOR = "#666666"
+    HIGHLIGHT_BG = "#E1F5FE"
+    BORDER_COLOR = "#D1D1D1"
     
-    def __init__(self, on_select: Optional[Callable] = None):
+    def __init__(self, on_select: Optional[Callable[[int], None]] = None):
         self._root: Optional[tk.Tk] = None
-        self._window: Optional[tk.Toplevel] = None
         self._on_select = on_select
         self._candidates: List[str] = []
-        self._code = ""
+        self._code_text = ""
         self._page = 1
         self._total_pages = 1
         self._is_visible = False
         self._lock = threading.Lock()
-        self._ui_thread: Optional[threading.Thread] = None
-        self._after_ids: List[int] = []
-    
+        self._docked = False  # 是否停靠在光标位置
+        
     def show(self, x: int, y: int):
         """显示候选窗口在指定位置"""
         with self._lock:
-            if self._window is None or not self._window.winfo_exists():
+            if self._root is None or not self._root.winfo_exists():
                 self._create_window()
             
-            if self._window:
-                # 调整位置，确保窗口不超出屏幕
-                screen_width = self._window.winfo_screenwidth()
-                screen_height = self._window.winfo_screenheight()
+            if self._root is None:
+                return
                 
-                # 先更新窗口大小
-                self._window.update_idletasks()
-                width = self._window.winfo_width()
-                height = self._window.winfo_height()
-                
-                # 如果超出右边界，显示在光标左侧
-                if x + width > screen_width:
-                    x = max(0, x - width - 10)
-                
-                # 如果超出下边界，显示在光标上方
-                if y + height > screen_height:
-                    y = max(0, y - height - 20)
-                
-                self._window.geometry(f"+{x}+{y}")
-                self._window.deiconify()
-                self._window.lift()
-                self._window.attributes('-topmost', True)
-                self._is_visible = True
+            # 确保窗口在屏幕范围内
+            screen_w = self._root.winfo_screenwidth()
+            screen_h = self._root.winfo_screenheight()
+            
+            # 估算窗口大小
+            win_w = 400
+            win_h = 120
+            
+            # 调整位置避免超出屏幕
+            if x + win_w > screen_w:
+                x = screen_w - win_w - 10
+            if y + win_h > screen_h:
+                y = y - win_h - 20  # 显示在光标上方
+            if y < 0:
+                y = 10
+            
+            self._root.geometry(f"+{x}+{y}")
+            self._root.deiconify()
+            self._root.lift()
+            self._root.attributes('-topmost', True)
+            self._is_visible = True
     
     def hide(self):
         """隐藏候选窗口"""
         with self._lock:
-            if self._window and self._window.winfo_exists():
-                self._window.withdraw()
+            if self._root and self._root.winfo_exists():
+                self._root.withdraw()
             self._is_visible = False
     
     def update_candidates(self, candidates: List[str], code: str, page: int = 1, total_pages: int = 1):
         """更新候选字列表和编码显示"""
         with self._lock:
-            self._candidates = candidates[:9]  # 每行最多9个
-            self._code = code
+            self._candidates = candidates
+            self._code_text = code
             self._page = page
-            self._total_pages = max(1, total_pages)
+            self._total_pages = total_pages
             
-            # 如果窗口不存在，先创建
-            if self._window is None or not self._window.winfo_exists():
-                self._create_window()
+            if self._root is None or not self._root.winfo_exists():
+                return
             
-            if self._window and self._window.winfo_exists():
-                self._window.after(0, self._update_ui)
+            # 更新编码标签
+            if hasattr(self, '_code_label') and self._code_label:
+                self._code_label.config(text=code if code else " ")
+            
+            # 更新候选字标签
+            if hasattr(self, '_candidates_frame') and self._candidates_frame:
+                self._update_candidates_display()
+            
+            # 更新页码标签
+            if hasattr(self, '_page_label') and self._page_label:
+                self._page_label.config(text=f"[{page}/{total_pages}]")
     
     def is_visible(self) -> bool:
         return self._is_visible
     
     def _create_window(self):
-        """创建 tkinter 窗口"""
-        if self._root is None or not self._root.winfo_exists():
-            self._root = tk.Tk()
-            self._root.withdraw()  # 隐藏主窗口
+        """创建 tkinter 窗口（Win11 风格）"""
+        self._root = tk.Tk()
+        self._root.overrideredirect(True)  # 无边框
+        self._root.attributes('-topmost', True)  # 置顶
+        self._root.configure(bg=self.BORDER_COLOR)
         
-        self._window = tk.Toplevel(self._root)
-        self._window.overrideredirect(True)  # 无边框
-        self._window.attributes('-topmost', True)  # 始终置顶
-        self._window.configure(bg=self.BG_COLOR)
-        self._window.withdraw()  # 初始隐藏
-        
-        # 创建主框架
-        self._main_frame = tk.Frame(self._window, bg=self.BG_COLOR, padx=8, pady=6)
+        # 主内容框（内边距模拟边框）
+        self._main_frame = tk.Frame(self._root, bg=self.BG_COLOR, padx=1, pady=1)
         self._main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 编码标签 (顶部)
+        # 编码显示区
+        self._code_frame = tk.Frame(self._main_frame, bg=self.CODE_BG_COLOR, padx=8, pady=4)
+        self._code_frame.pack(fill=tk.X, padx=4, pady=(4, 0))
+        
         self._code_label = tk.Label(
-            self._main_frame,
-            text="",
-            font=("Microsoft YaHei", 11, "bold"),
-            fg=self.CODE_COLOR,
-            bg=self.BG_COLOR,
-            anchor=tk.W
+            self._code_frame,
+            text=" ",
+            font=("Microsoft YaHei UI", 12, "bold"),
+            bg=self.CODE_BG_COLOR,
+            fg=self.CODE_FG_COLOR
         )
-        self._code_label.pack(fill=tk.X, pady=(0, 4))
+        self._code_label.pack(anchor=tk.W)
         
-        # 分隔线
-        self._separator = tk.Frame(self._main_frame, height=1, bg="#E0E0E0")
-        self._separator.pack(fill=tk.X, pady=(0, 4))
+        # 候选字区域
+        self._candidates_frame = tk.Frame(self._main_frame, bg=self.BG_COLOR, padx=8, pady=6)
+        self._candidates_frame.pack(fill=tk.X, padx=4, pady=(0, 2))
         
-        # 候选字容器
-        self._candidates_frame = tk.Frame(self._main_frame, bg=self.BG_COLOR)
-        self._candidates_frame.pack(fill=tk.X)
+        # 页码区域
+        self._page_frame = tk.Frame(self._main_frame, bg=self.BG_COLOR, padx=8, pady=(0, 4))
+        self._page_frame.pack(fill=tk.X, padx=4)
         
-        # 候选字标签列表
-        self._candidates_labels = []
-        for i in range(9):
-            frame = tk.Frame(self._candidates_frame, bg=self.BG_COLOR)
-            frame.pack(side=tk.LEFT, padx=(0, 8))
-            
-            index_label = tk.Label(
-                frame,
-                text=f"{i+1}.",
-                font=("Microsoft YaHei", 10),
-                fg=self.INDEX_COLOR,
-                bg=self.BG_COLOR
-            )
-            index_label.pack(side=tk.LEFT)
-            
-            char_label = tk.Label(
-                frame,
-                text="",
-                font=("Microsoft YaHei", 14, "bold"),
-                fg=self.CANDIDATE_COLOR,
+        self._page_label = tk.Label(
+            self._page_frame,
+            text="[1/1]",
+            font=("Microsoft YaHei UI", 9),
+            bg=self.BG_COLOR,
+            fg=self.PAGE_FG_COLOR
+        )
+        self._page_label.pack(anchor=tk.E)
+        
+        # 初始隐藏
+        self._root.withdraw()
+    
+    def _update_candidates_display(self):
+        """更新候选字显示"""
+        # 清除旧的候选字标签
+        for widget in self._candidates_frame.winfo_children():
+            widget.destroy()
+        
+        if not self._candidates:
+            tk.Label(
+                self._candidates_frame,
+                text="无候选字",
+                font=("Microsoft YaHei UI", 11),
                 bg=self.BG_COLOR,
+                fg="#999999"
+            ).pack(anchor=tk.W)
+            return
+        
+        # 创建候选字标签（横向排列）
+        for i, candidate in enumerate(self._candidates[:9]):
+            idx = i + 1
+            
+            # 每个候选字用一个小框架
+            cand_frame = tk.Frame(self._candidates_frame, bg=self.BG_COLOR)
+            cand_frame.pack(side=tk.LEFT, padx=(0, 12))
+            
+            # 序号标签
+            idx_label = tk.Label(
+                cand_frame,
+                text=f"{idx}.",
+                font=("Microsoft YaHei UI", 9),
+                bg=self.BG_COLOR,
+                fg=self.INDEX_FG_COLOR
+            )
+            idx_label.pack(side=tk.LEFT)
+            
+            # 候选字标签
+            char_label = tk.Label(
+                cand_frame,
+                text=candidate,
+                font=("Microsoft YaHei UI", 16, "bold"),
+                bg=self.BG_COLOR,
+                fg=self.CANDIDATE_FG_COLOR,
                 cursor="hand2"
             )
             char_label.pack(side=tk.LEFT)
             
-            # 绑定点击事件
-            char_label.bind("<Button-1>", lambda e, idx=i: self._on_click(idx))
-            index_label.bind("<Button-1>", lambda e, idx=i: self._on_click(idx))
-            frame.bind("<Button-1>", lambda e, idx=i: self._on_click(idx))
-            
-            self._candidates_labels.append((frame, index_label, char_label))
-        
-        # 页码标签 (底部)
-        self._page_label = tk.Label(
-            self._main_frame,
-            text="",
-            font=("Microsoft YaHei", 9),
-            fg=self.PAGE_COLOR,
-            bg=self.BG_COLOR,
-            anchor=tk.E
-        )
-        self._page_label.pack(fill=tk.X, pady=(4, 0))
-        
-        # 更新UI
-        self._update_ui()
+            # 点击事件
+            char_label.bind("<Button-1>", lambda e, idx=i: self._on_click_candidate(idx))
+            idx_label.bind("<Button-1>", lambda e, idx=i: self._on_click_candidate(idx))
     
-    def _on_click(self, index: int):
+    def _on_click_candidate(self, index: int):
         """点击候选字回调"""
-        if self._on_select and index < len(self._candidates):
+        if self._on_select:
             self._on_select(index)
-    
-    def _update_ui(self):
-        """更新UI显示"""
-        if self._window is None or not self._window.winfo_exists():
-            return
-        
-        # 更新编码显示
-        if self._code_label and self._code_label.winfo_exists():
-            self._code_label.config(text=f"wubi: {self._code}")
-        
-        # 更新候选字显示
-        for i, (frame, index_label, char_label) in enumerate(self._candidates_labels):
-            if i < len(self._candidates):
-                candidate = self._candidates[i]
-                index_label.config(text=f"{i+1}.")
-                # 第一个候选字用不同颜色高亮
-                if i == 0:
-                    char_label.config(text=candidate, fg=self.FIRST_CANDIDATE_COLOR)
-                else:
-                    char_label.config(text=candidate, fg=self.CANDIDATE_COLOR)
-                frame.pack(side=tk.LEFT, padx=(0, 8))
-            else:
-                index_label.config(text="")
-                char_label.config(text="")
-                frame.pack_forget()
-        
-        # 更新页码显示
-        if self._page_label and self._page_label.winfo_exists():
-            self._page_label.config(text=f"[{self._page}/{self._total_pages}]")
-        
-        # 调整窗口大小
-        self._window.update_idletasks()
-        
-        # 设置边框效果
-        self._window.configure(
-            highlightbackground="#BDBDBD",
-            highlightthickness=1
-        )
-    
-    def _run_in_ui_thread(self, func):
-        """在 UI 线程中运行函数"""
-        if self._window and self._window.winfo_exists():
-            after_id = self._window.after(0, func)
-            self._after_ids.append(after_id)
     
     def destroy(self):
         """销毁窗口"""
         with self._lock:
-            # 取消所有待执行的 after 任务
-            if self._window and self._window.winfo_exists():
-                for after_id in self._after_ids:
-                    try:
-                        self._window.after_cancel(after_id)
-                    except Exception:
-                        pass
-            self._after_ids.clear()
-            
-            if self._window and self._window.winfo_exists():
-                self._window.destroy()
-                self._window = None
             if self._root and self._root.winfo_exists():
                 self._root.destroy()
-                self._root = None
+            self._root = None
             self._is_visible = False
+    
+    def get_position(self) -> Tuple[int, int]:
+        """获取当前窗口位置"""
+        if self._root and self._root.winfo_exists():
+            return self._root.winfo_x(), self._root.winfo_y()
+        return 0, 0
+
+
+def get_cursor_position() -> Tuple[int, int]:
+    """获取当前光标位置（Win32 API）"""
+    try:
+        import ctypes
+        # 使用 GetGUIThreadInfo 获取当前输入焦点窗口的插入符号位置
+        class GUITHREADINFO(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", ctypes.c_uint),
+                ("flags", ctypes.c_uint),
+                ("hwndActive", ctypes.c_void_p),
+                ("hwndFocus", ctypes.c_void_p),
+                ("hwndCapture", ctypes.c_void_p),
+                ("hwndMenuOwner", ctypes.c_void_p),
+                ("hwndMoveSize", ctypes.c_void_p),
+                ("hwndCaret", ctypes.c_void_p),
+                ("rcCaret", ctypes.c_int * 4),
+                ("dwInsertionPoint", ctypes.c_uint),
+            ]
+        
+        gui_info = GUITHREADINFO()
+        gui_info.cbSize = ctypes.sizeof(GUITHREADINFO)
+        
+        if ctypes.windll.user32.GetGUIThreadInfo(0, ctypes.byref(gui_info)):
+            # rcCaret 包含插入符的矩形坐标 (left, top, right, bottom)
+            x = gui_info.rcCaret[0]
+            y = gui_info.rcCaret[3] + 2  # 显示在光标下方
+            return x, y
+    except Exception:
+        pass
+    
+    # Fallback: 使用 GetCursorPos
+    try:
+        pt = ctypes.wintypes.POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+        return pt.x, pt.y + 20
+    except Exception:
+        pass
+    
+    return 100, 100
