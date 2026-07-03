@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 # 默认配置
 DEFAULT_CONFIG = {
-    "activation_hotkey": "ctrl+shift+w",
+    "activation_hotkey": "ctrl+alt+w",
     "candidates_per_page": 9,
     "wubi_table_path": None,  # 使用内置编码表
     "user_dict_path": "user_dict.json",

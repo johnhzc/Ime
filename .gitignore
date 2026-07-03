@@ -34,3 +34,5 @@ env/
 # Project specific
 wubi_config.json
 user_dict.json
+wubi_ime_tsf/cmake/
+wubi_ime_tsf/cmake-portable.zip

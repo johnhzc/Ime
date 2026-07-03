@@ -32,7 +32,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-运行后，输入法将在后台运行。按 `Ctrl+Shift+W` 激活/关闭输入法。
+运行后，输入法将在后台运行。按 `Ctrl+Alt+W` 激活/关闭输入法。
 
 ### 基本操作
 

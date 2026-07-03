@@ -15,9 +15,9 @@ print("=" * 50)
 
 try:
     import keyboard
-    print("✅ keyboard 库已安装")
+    print("[OK] keyboard 库已安装")
 except ImportError:
-    print("❌ keyboard 库未安装")
+    print("[FAIL] keyboard 库未安装")
     print("   请运行: pip install keyboard")
     sys.exit(1)
 
@@ -41,7 +41,7 @@ keyboard.unhook(hook_id)
 
 print(f"\n共检测到 {len(events)} 次 'w' 按下")
 if events:
-    print("✅ 键盘钩子正常工作（不拦截模式）")
+    print("[OK] 键盘钩子正常工作（不拦截模式）")
 else:
     print("⚠️ 未检测到按键，可能需要管理员权限")
 
@@ -82,7 +82,7 @@ keyboard.unhook(hook_id2)
 
 print(f"\n共拦截 {count[0]} 次 'w' 并发送 '人'")
 if count[0] > 0:
-    print("✅ 键盘拦截 + 输出功能正常")
+    print("[OK] 键盘拦截 + 输出功能正常")
     print("\n如果以上都正常，但五笔输入法仍有问题，")
     print("问题可能出在复杂的状态管理上。")
 else:

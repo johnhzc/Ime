@@ -51,7 +51,7 @@
 - 编码表使用 JSON 格式，键为汉字，值为五笔编码
 - 所有按键处理使用统一的 Action 枚举: `ADD_KEY`, `SELECT_CANDIDATE`, `DELETE`, `CANCEL`, `SUBMIT`, `SWITCH_MODE`, `PAGE_UP`, `PAGE_DOWN`
 - 候选字每页显示 9 个（对应数字键 1-9）
-- 输入法激活/关闭快捷键: `Ctrl+Shift+W`
+- 输入法激活/关闭快捷键: `Ctrl+Alt+W`
 - 中英文切换: `Shift` 键
 
 ## 文件边界

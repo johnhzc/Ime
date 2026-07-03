@@ -70,7 +70,7 @@ class TrayIcon:
             self._icon = pystray.Icon(
                 name="WubiIME",
                 icon=icon_img,
-                title="五笔输入法 (Ctrl+Shift+W)",
+                title="五笔输入法 (Ctrl+Alt+W)",
                 menu=self._create_menu()
             )
             
@@ -117,7 +117,7 @@ class TrayIcon:
         try:
             status = "已激活" if self._is_active else "已关闭"
             mode = "中文" if self._is_chinese else "英文"
-            self._icon.title = f"五笔输入法 [{status}] {mode}模式 (Ctrl+Shift+W)"
+            self._icon.title = f"五笔输入法 [{status}] {mode}模式 (Ctrl+Alt+W)"
         except Exception:
             pass
     

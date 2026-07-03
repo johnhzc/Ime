@@ -32,13 +32,13 @@ def main():
         ime.start()
         
     except ImportError as e:
-        print(f"\n❌ 导入失败: {e}")
+        print(f"\n[FAIL] 导入失败: {e}")
         print("请确保已安装依赖: pip install -r requirements.txt")
         input("\n按 Enter 键退出...")
         sys.exit(1)
         
     except Exception as e:
-        print(f"\n❌ 启动失败: {e}")
+        print(f"\n[FAIL] 启动失败: {e}")
         import traceback
         traceback.print_exc()
         input("\n按 Enter 键退出...")

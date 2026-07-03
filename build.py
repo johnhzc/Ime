@@ -49,7 +49,7 @@ def build():
     if result.returncode == 0:
         print()
         print("=" * 60)
-        print("✅ 打包成功!")
+        print("[OK] 打包成功!")
         print("=" * 60)
         exe_path = os.path.join(dist_dir, "WubiIME.exe")
         if os.path.exists(exe_path):
@@ -61,7 +61,7 @@ def build():
     else:
         print()
         print("=" * 60)
-        print("❌ 打包失败")
+        print("[FAIL] 打包失败")
         print("=" * 60)
         print("错误码:", result.returncode)
         return result.returncode
