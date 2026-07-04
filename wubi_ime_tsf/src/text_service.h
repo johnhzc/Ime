@@ -10,11 +10,14 @@
 namespace wubi_tsf {
 
 class ImeEngine;
+class CompositionEditSession;
 
 class TextService : public ITfTextInputProcessorEx,
                     public ITfThreadMgrEventSink,
                     public ITfKeyEventSink,
                     public ITfCompositionSink {
+    friend class CompositionEditSession;
+
 public:
     TextService();
     virtual ~TextService();
@@ -48,6 +51,8 @@ public:
 
     // ITfCompositionSink
     IFACEMETHODIMP OnCompositionTerminated(TfEditCookie ecWrite, ITfComposition* composition) override;
+
+    TfClientId client_id() const { return client_id_; }
 
 private:
     HRESULT InitKeyEventSink();
