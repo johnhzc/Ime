@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "factory.h"
+#include "utils.h"
 
 namespace wubi_tsf {
 
@@ -218,6 +219,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
     switch (reason) {
         case DLL_PROCESS_ATTACH:
             DisableThreadLibraryCalls(module);
+            wubi_tsf::SetInstanceHandle(module);
             break;
         case DLL_PROCESS_DETACH:
             break;

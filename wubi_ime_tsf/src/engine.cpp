@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <set>
@@ -41,7 +42,8 @@ public:
         char_to_codes_.clear();
         code_to_chars_.clear();
 
-        std::ifstream file(WideToUtf8(path));
+        std::filesystem::path fs_path(path);
+        std::ifstream file(fs_path);
         if (!file.is_open()) {
             return false;
         }

@@ -6,6 +6,15 @@
 
 namespace wubi_tsf {
 
+// Append a timestamped message to %TEMP%\WubiIME_Runtime.log.
+void RuntimeLog(const wchar_t* format, ...);
+
+// Set the DLL instance handle (called from DllMain).
+void SetInstanceHandle(HINSTANCE instance);
+
+// Get the DLL instance handle, falling back to the host process module.
+HINSTANCE GetInstanceHandle();
+
 // Get current caret position in screen coordinates.
 // Falls back to mouse cursor position.
 std::pair<int, int> GetCaretPosition();

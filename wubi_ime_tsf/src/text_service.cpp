@@ -12,43 +12,6 @@
 
 namespace wubi_tsf {
 
-namespace {
-
-void RuntimeLog(const wchar_t* format, ...) {
-    wchar_t temp_path[MAX_PATH] = {};
-    if (GetEnvironmentVariableW(L"TEMP", temp_path, MAX_PATH) == 0) {
-        GetCurrentDirectoryW(MAX_PATH, temp_path);
-    }
-    std::wstring log_path = std::wstring(temp_path) + L"\\WubiIME_Runtime.log";
-
-    HANDLE file = CreateFileW(log_path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ,
-                              nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) {
-        return;
-    }
-
-    SYSTEMTIME st = {};
-    GetLocalTime(&st);
-
-    wchar_t buf[2048] = {};
-    int len = swprintf_s(buf, L"[%04d-%02d-%02d %02d:%02d:%02d] ",
-                         st.wYear, st.wMonth, st.wDay,
-                         st.wHour, st.wMinute, st.wSecond);
-
-    va_list args;
-    va_start(args, format);
-    len += vswprintf_s(buf + len, _countof(buf) - len, format, args);
-    va_end(args);
-
-    len += swprintf_s(buf + len, _countof(buf) - len, L"\r\n");
-
-    DWORD written = 0;
-    WriteFile(file, buf, static_cast<DWORD>(len * sizeof(wchar_t)), &written, nullptr);
-    CloseHandle(file);
-}
-
-}  // namespace
-
 class CompositionEditSession : public ITfEditSession {
 public:
     enum class Mode { Update, Commit };
@@ -219,7 +182,7 @@ IFACEMETHODIMP TextService::Activate(ITfThreadMgr* thread_mgr, TfClientId client
 
     // Create candidate window.
     candidate_window_ = std::make_unique<CandidateWindow>();
-    if (!candidate_window_->Create(GetCurrentModule())) {
+    if (!candidate_window_->Create(GetInstanceHandle())) {
         RuntimeLog(L"[Activate] CandidateWindow::Create failed");
     }
     candidate_window_->SetSelectCallback([this](int index) { OnCandidateSelected(index); });

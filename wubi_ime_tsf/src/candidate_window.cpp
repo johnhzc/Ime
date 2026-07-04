@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <sstream>
 
+#include "utils.h"
+
 namespace wubi_tsf {
 
 CandidateWindow::CandidateWindow() = default;
@@ -13,7 +15,8 @@ CandidateWindow::~CandidateWindow() {
 }
 
 bool CandidateWindow::Create(HINSTANCE instance) {
-    instance_ = instance;
+    instance_ = instance ? instance : GetInstanceHandle();
+    RuntimeLog(L"[CandidateWindow::Create] instance=0x%p", instance_);
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(WNDCLASSEXW);
@@ -24,7 +27,9 @@ bool CandidateWindow::Create(HINSTANCE instance) {
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
     if (!RegisterClassExW(&wc)) {
-        if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+        DWORD err = GetLastError();
+        if (err != ERROR_CLASS_ALREADY_EXISTS) {
+            RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW failed err=%lu", err);
             return false;
         }
     }
@@ -41,10 +46,12 @@ bool CandidateWindow::Create(HINSTANCE instance) {
         this);
 
     if (!hwnd_) {
+        RuntimeLog(L"[CandidateWindow::Create] CreateWindowExW failed err=%lu", GetLastError());
         return false;
     }
 
     ShowWindow(hwnd_, SW_HIDE);
+    RuntimeLog(L"[CandidateWindow::Create] succeeded hwnd=0x%p", hwnd_);
     return true;
 }
 
