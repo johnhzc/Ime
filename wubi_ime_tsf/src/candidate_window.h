@@ -38,6 +38,7 @@ private:
 
     HWND hwnd_ = nullptr;
     HINSTANCE instance_ = nullptr;
+    std::wstring class_name_;
     std::wstring composition_;
     std::vector<std::wstring> candidates_;
     int page_ = 1;

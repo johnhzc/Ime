@@ -18,15 +18,36 @@ bool CandidateWindow::Create(HINSTANCE instance) {
     instance_ = instance ? instance : GetInstanceHandle();
     RuntimeLog(L"[CandidateWindow::Create] instance=0x%p", instance_);
 
-    // Unregister any stale registration from a previous load to ensure
-    // CreateWindowExW uses the correct WndProc/HINSTANCE pair.
-    UnregisterClassW(kClassName, instance_);
+    // 生成一个尽量唯一的窗口类名；如果上一次注册仍有窗口残留，尝试不同后缀。
+    static int suffix_counter = 0;
+    DWORD pid = GetCurrentProcessId();
+    for (int attempt = 0; attempt < 16; ++attempt) {
+        class_name_ = kClassName;
+        class_name_ += L"_";
+        class_name_ += std::to_wstring(pid);
+        class_name_ += L"_";
+        class_name_ += std::to_wstring(suffix_counter++);
+
+        if (UnregisterClassW(class_name_.c_str(), instance_)) {
+            break;  // 成功注销旧注册
+        }
+
+        DWORD err = GetLastError();
+        if (err == ERROR_CLASS_DOES_NOT_EXIST) {
+            break;  // 没有旧注册
+        }
+        if (err == ERROR_CLASS_HAS_WINDOWS) {
+            RuntimeLog(L"[CandidateWindow::Create] class still has windows, retrying suffix err=%lu", err);
+            continue;
+        }
+        RuntimeLog(L"[CandidateWindow::Create] UnregisterClassW failed err=%lu", err);
+    }
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(WNDCLASSEXW);
     wc.lpfnWndProc = CandidateWindow::WindowProc;
     wc.hInstance = instance_;
-    wc.lpszClassName = kClassName;
+    wc.lpszClassName = class_name_.c_str();
     wc.hbrBackground = CreateSolidBrush(RGB(243, 243, 243));
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
@@ -38,15 +59,21 @@ bool CandidateWindow::Create(HINSTANCE instance) {
             return false;
         }
     }
-    RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW atom=0x%04X", atom);
+    RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW atom=0x%04X class='%s'",
+               atom, class_name_.c_str());
+
+    HWND owner = GetForegroundWindow();
+    if (!owner) {
+        owner = HWND_DESKTOP;
+    }
 
     hwnd_ = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
-        kClassName,
+        class_name_.c_str(),
         L"WubiTSF",
         WS_POPUP,
         CW_USEDEFAULT, CW_USEDEFAULT, 400, 120,
-        nullptr,
+        owner,
         nullptr,
         instance_,
         this);
@@ -54,7 +81,7 @@ bool CandidateWindow::Create(HINSTANCE instance) {
     if (!hwnd_) {
         DWORD err = GetLastError();
         RuntimeLog(L"[CandidateWindow::Create] CreateWindowExW failed err=%lu atom=0x%04X class='%s'",
-                   err, atom, kClassName);
+                   err, atom, class_name_.c_str());
         return false;
     }
 
@@ -71,11 +98,14 @@ void CandidateWindow::Destroy() {
 }
 
 void CandidateWindow::Show() {
-    if (hwnd_) {
-        ShowWindow(hwnd_, SW_SHOWNA);
-        SetWindowPos(hwnd_, HWND_TOPMOST, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    if (!hwnd_) {
+        if (!Create(instance_ ? instance_ : GetInstanceHandle())) {
+            return;
+        }
     }
+    ShowWindow(hwnd_, SW_SHOWNA);
+    SetWindowPos(hwnd_, HWND_TOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
 }
 
 void CandidateWindow::Hide() {

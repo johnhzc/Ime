@@ -30,6 +30,14 @@ void RuntimeLog(const wchar_t* format, ...) {
         return;
     }
 
+    // 新创建日志文件时写入 UTF-8 BOM，便于编辑器识别。
+    LARGE_INTEGER file_size = {};
+    if (GetFileSizeEx(file, &file_size) && file_size.QuadPart == 0) {
+        const char bom[] = "\xEF\xBB\xBF";
+        DWORD written = 0;
+        WriteFile(file, bom, sizeof(bom) - 1, &written, nullptr);
+    }
+
     SYSTEMTIME st = {};
     GetLocalTime(&st);
 
@@ -45,8 +53,17 @@ void RuntimeLog(const wchar_t* format, ...) {
 
     len += swprintf_s(buf + len, _countof(buf) - len, L"\r\n");
 
-    DWORD written = 0;
-    WriteFile(file, buf, static_cast<DWORD>(len * sizeof(wchar_t)), &written, nullptr);
+    // 转换为 UTF-8 后再写入，避免 UTF-16 无 BOM 时中文乱码。
+    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, buf, len, nullptr, 0, nullptr, nullptr);
+    if (utf8_len > 0) {
+        std::vector<char> utf8_buf(utf8_len);
+        if (WideCharToMultiByte(CP_UTF8, 0, buf, len, utf8_buf.data(), utf8_len,
+                                nullptr, nullptr) > 0) {
+            DWORD written = 0;
+            WriteFile(file, utf8_buf.data(), static_cast<DWORD>(utf8_len), &written, nullptr);
+        }
+    }
+
     CloseHandle(file);
 }
 

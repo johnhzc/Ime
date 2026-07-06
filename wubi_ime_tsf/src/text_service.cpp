@@ -53,15 +53,47 @@ public:
             return hr;
         }
 
-        // Start a composition if we don't have one and this is an update.
+        // 没有合成串时，先获取一个零长度插入范围再启动合成。
         if (mode_ == Mode::Update && !service_->composition_) {
-            hr = ctx_comp->StartComposition(ec, nullptr,
+            ITfInsertAtSelection* insert = nullptr;
+            hr = context_->QueryInterface(IID_ITfInsertAtSelection,
+                                          reinterpret_cast<void**>(&insert));
+            if (FAILED(hr) || !insert) {
+                RuntimeLog(L"[DoEditSession] QueryInterface ITfInsertAtSelection failed hr=0x%08X", hr);
+                ctx_comp->Release();
+                return hr;
+            }
+
+            ITfRange* range = nullptr;
+            hr = insert->InsertTextAtSelection(ec, TF_IAS_QUERYONLY, nullptr, 0, &range);
+            insert->Release();
+            RuntimeLog(L"[DoEditSession] InsertTextAtSelection query hr=0x%08X", hr);
+            if (FAILED(hr) || !range) {
+                ctx_comp->Release();
+                return hr;
+            }
+
+            hr = ctx_comp->StartComposition(ec, range,
                                             static_cast<ITfCompositionSink*>(service_),
                                             &service_->composition_);
             RuntimeLog(L"[DoEditSession] StartComposition hr=0x%08X", hr);
+            range->Release();
             if (FAILED(hr)) {
                 ctx_comp->Release();
                 return hr;
+            }
+
+            // 将选区设置到合成范围，确保输入法能正确定位合成文本。
+            ITfRange* comp_range = nullptr;
+            hr = service_->composition_->GetRange(&comp_range);
+            if (SUCCEEDED(hr) && comp_range) {
+                TF_SELECTION selection = {};
+                selection.range = comp_range;
+                selection.style.ase = TF_AE_NONE;
+                selection.style.fInterimChar = FALSE;
+                HRESULT hr_sel = context_->SetSelection(ec, 1, &selection);
+                RuntimeLog(L"[DoEditSession] SetSelection hr=0x%08X", hr_sel);
+                comp_range->Release();
             }
         }
 
@@ -137,7 +169,7 @@ HRESULT RequestCompositionEditSession(TextService* service, ITfContext* context,
 
     HRESULT hr_session = S_OK;
     HRESULT hr = context->RequestEditSession(service->client_id(), session,
-                                             TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, &hr_session);
+                                             TF_ES_SYNC | TF_ES_READWRITE, &hr_session);
     session->Release();
     if (FAILED(hr)) {
         RuntimeLog(L"[RequestCompositionEditSession] RequestEditSession failed hr=0x%08X", hr);
@@ -210,11 +242,8 @@ IFACEMETHODIMP TextService::Activate(ITfThreadMgr* thread_mgr, TfClientId client
         RuntimeLog(L"[Activate] WARNING: failed to load encoding table");
     }
 
-    // Create candidate window.
+    // 创建候选窗对象；实际 HWND 在第一次需要显示时延迟创建。
     candidate_window_ = std::make_unique<CandidateWindow>();
-    if (!candidate_window_->Create(GetInstanceHandle())) {
-        RuntimeLog(L"[Activate] CandidateWindow::Create failed");
-    }
     candidate_window_->SetSelectCallback([this](int index) { OnCandidateSelected(index); });
 
     // Install thread manager event sink.
@@ -457,10 +486,11 @@ void TextService::UpdateCandidateWindow() {
     }
 
     auto [x, y] = GetCaretPosition();
+    // 延迟创建候选窗口，创建后再移动到光标位置并刷新内容。
+    candidate_window_->Show();
+    candidate_window_->MoveTo(x, y);
     candidate_window_->Update(engine_->GetCompositionString(), candidates,
                               page_info.first, page_info.second);
-    candidate_window_->MoveTo(x, y);
-    candidate_window_->Show();
 }
 
 void TextService::OnCandidateSelected(int index) {
