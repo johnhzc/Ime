@@ -12,9 +12,9 @@
 
 namespace wubi_tsf {
 
-namespace {
-
 LONG g_lock_count = 0;
+
+namespace {
 
 std::wstring GuidToString(REFGUID guid) {
     OLECHAR buf[40] = {};

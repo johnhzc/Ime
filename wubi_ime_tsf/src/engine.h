@@ -36,6 +36,12 @@ public:
 
     // Reset the engine state
     virtual void Reset() = 0;
+
+    // Toggle Chinese/English mode
+    virtual void ToggleMode() = 0;
+
+    // Get current Chinese/English mode
+    virtual bool IsChineseMode() const = 0;
 };
 
 // Factory to create the default engine (Wubi)

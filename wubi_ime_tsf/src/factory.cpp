@@ -8,6 +8,11 @@ namespace wubi_tsf {
 
 ClassFactory::ClassFactory() {
     AddRef();
+    InterlockedIncrement(&g_lock_count);
+}
+
+ClassFactory::~ClassFactory() {
+    InterlockedDecrement(&g_lock_count);
 }
 
 IFACEMETHODIMP ClassFactory::QueryInterface(REFIID riid, void** ppv) {
@@ -56,9 +61,9 @@ IFACEMETHODIMP ClassFactory::CreateInstance(IUnknown* outer, REFIID riid, void**
 
 IFACEMETHODIMP ClassFactory::LockServer(BOOL lock) {
     if (lock) {
-        InterlockedIncrement(&ref_count_);
+        InterlockedIncrement(&g_lock_count);
     } else {
-        InterlockedDecrement(&ref_count_);
+        InterlockedDecrement(&g_lock_count);
     }
     return S_OK;
 }

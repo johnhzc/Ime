@@ -1,4 +1,8 @@
-"""PyInstaller 打包脚本（Win11 简化版）"""
+"""PyInstaller 打包脚本（Python 原型版本，Win11 简化版）
+
+注意：当前项目主推实现为 wubi_ime_tsf/ 下的 TSF 原生输入法 DLL。
+本脚本仅用于打包早期的 Python 原型版本，作为参考与备用。
+"""
 import os
 import sys
 import subprocess
@@ -39,7 +43,7 @@ def build():
     ]
     
     print("=" * 60)
-    print("开始打包五笔输入法...")
+    print("开始打包五笔输入法（Python 原型版本）...")
     print("=" * 60)
     print("命令:", " ".join(cmd))
     print()

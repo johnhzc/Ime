@@ -1,3 +1,4 @@
+# Python 原型版本依赖（当前主推实现为 wubi_ime_tsf/ TSF DLL）
 pynput>=1.7.6
 pywin32>=306
 keyboard>=0.13.5

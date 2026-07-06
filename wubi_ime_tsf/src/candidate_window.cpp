@@ -18,6 +18,10 @@ bool CandidateWindow::Create(HINSTANCE instance) {
     instance_ = instance ? instance : GetInstanceHandle();
     RuntimeLog(L"[CandidateWindow::Create] instance=0x%p", instance_);
 
+    // Unregister any stale registration from a previous load to ensure
+    // CreateWindowExW uses the correct WndProc/HINSTANCE pair.
+    UnregisterClassW(kClassName, instance_);
+
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(WNDCLASSEXW);
     wc.lpfnWndProc = CandidateWindow::WindowProc;
@@ -26,13 +30,15 @@ bool CandidateWindow::Create(HINSTANCE instance) {
     wc.hbrBackground = CreateSolidBrush(RGB(243, 243, 243));
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
-    if (!RegisterClassExW(&wc)) {
+    ATOM atom = RegisterClassExW(&wc);
+    if (!atom) {
         DWORD err = GetLastError();
         if (err != ERROR_CLASS_ALREADY_EXISTS) {
             RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW failed err=%lu", err);
             return false;
         }
     }
+    RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW atom=0x%04X", atom);
 
     hwnd_ = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
@@ -46,7 +52,9 @@ bool CandidateWindow::Create(HINSTANCE instance) {
         this);
 
     if (!hwnd_) {
-        RuntimeLog(L"[CandidateWindow::Create] CreateWindowExW failed err=%lu", GetLastError());
+        DWORD err = GetLastError();
+        RuntimeLog(L"[CandidateWindow::Create] CreateWindowExW failed err=%lu atom=0x%04X class='%s'",
+                   err, atom, kClassName);
         return false;
     }
 

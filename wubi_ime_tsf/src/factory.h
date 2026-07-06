@@ -5,6 +5,9 @@
 
 namespace wubi_tsf {
 
+// Global DLL lock count used by DllCanUnloadNow.
+extern LONG g_lock_count;
+
 // COM class factory for the TSF text service.
 class ClassFactory : public IClassFactory {
 public:
@@ -18,6 +21,7 @@ public:
     IFACEMETHODIMP LockServer(BOOL lock) override;
 
     ClassFactory();
+    ~ClassFactory();
 
 private:
     LONG ref_count_ = 1;

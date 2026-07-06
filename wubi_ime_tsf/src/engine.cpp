@@ -86,6 +86,18 @@ public:
     ProcessKeyResult ProcessKey(const std::string& key) override {
         ProcessKeyResult result;
 
+        if (key == "shift") {
+            ToggleMode();
+            result.consumed = true;
+            result.need_update_ui = true;
+            return result;
+        }
+
+        if (!IsChineseMode()) {
+            // In English mode, do not consume any keys.
+            return result;
+        }
+
         if (key.length() == 1 && key[0] >= 'a' && key[0] <= 'z') {
             if (code_.length() < 4) {
                 code_ += key[0];
@@ -191,6 +203,14 @@ public:
         page_ = 0;
     }
 
+    void ToggleMode() override {
+        chinese_mode_ = !chinese_mode_;
+    }
+
+    bool IsChineseMode() const override {
+        return chinese_mode_;
+    }
+
 private:
     static constexpr int kPageSize = 9;
 
@@ -248,6 +268,7 @@ private:
     std::string code_;
     std::vector<std::wstring> candidates_;
     int page_ = 0;
+    bool chinese_mode_ = true;
 };
 
 }  // namespace

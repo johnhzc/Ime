@@ -40,15 +40,17 @@ public:
     }
 
     IFACEMETHODIMP DoEditSession(TfEditCookie ec) {
-        RuntimeLog(L"[DoEditSession] mode=%s text='%s'",
-                   mode_ == Mode::Commit ? L"commit" : L"update", text_.c_str());
+        RuntimeLog(L"[DoEditSession] mode=%s text='%s' composition=0x%p",
+                   mode_ == Mode::Commit ? L"commit" : L"update",
+                   text_.c_str(), service_->composition_);
 
         HRESULT hr = S_OK;
         ITfContextComposition* ctx_comp = nullptr;
-        if (FAILED(context_->QueryInterface(IID_ITfContextComposition,
-                                            reinterpret_cast<void**>(&ctx_comp)))) {
-            RuntimeLog(L"[DoEditSession] QueryInterface ITfContextComposition failed");
-            return E_FAIL;
+        hr = context_->QueryInterface(IID_ITfContextComposition,
+                                      reinterpret_cast<void**>(&ctx_comp));
+        if (FAILED(hr) || !ctx_comp) {
+            RuntimeLog(L"[DoEditSession] QueryInterface ITfContextComposition failed hr=0x%08X", hr);
+            return hr;
         }
 
         // Start a composition if we don't have one and this is an update.
@@ -57,14 +59,25 @@ public:
                                             static_cast<ITfCompositionSink*>(service_),
                                             &service_->composition_);
             RuntimeLog(L"[DoEditSession] StartComposition hr=0x%08X", hr);
+            if (FAILED(hr)) {
+                ctx_comp->Release();
+                return hr;
+            }
         }
 
         if (service_->composition_) {
             ITfRange* range = nullptr;
-            if (SUCCEEDED(service_->composition_->GetRange(&range)) && range) {
-                hr = range->SetText(ec, 0, text_.c_str(),
-                                    static_cast<LONG>(text_.length()));
-                RuntimeLog(L"[DoEditSession] SetText hr=0x%08X", hr);
+            hr = service_->composition_->GetRange(&range);
+            if (SUCCEEDED(hr) && range) {
+                // For commit with non-empty text, replace the composition content.
+                // For empty commit (e.g. Esc cleared the code), just end the composition
+                // without replacing, to avoid deleting application text.
+                if (!text_.empty() || mode_ == Mode::Update) {
+                    hr = range->SetText(ec, 0, text_.c_str(),
+                                        static_cast<LONG>(text_.length()));
+                    RuntimeLog(L"[DoEditSession] SetText hr=0x%08X len=%d", hr,
+                               static_cast<int>(text_.length()));
+                }
                 range->Release();
 
                 if (mode_ == Mode::Commit) {
@@ -77,18 +90,23 @@ public:
                         service_->candidate_window_->Hide();
                     }
                 }
+            } else {
+                RuntimeLog(L"[DoEditSession] GetRange failed hr=0x%08X", hr);
             }
-        } else if (mode_ == Mode::Commit) {
+        } else if (mode_ == Mode::Commit && !text_.empty()) {
             // No active composition: just insert the text at the selection.
             ITfInsertAtSelection* insert = nullptr;
-            if (SUCCEEDED(context_->QueryInterface(IID_ITfInsertAtSelection,
-                                                   reinterpret_cast<void**>(&insert)))) {
+            hr = context_->QueryInterface(IID_ITfInsertAtSelection,
+                                          reinterpret_cast<void**>(&insert));
+            if (SUCCEEDED(hr) && insert) {
                 ITfRange* range = nullptr;
                 hr = insert->InsertTextAtSelection(ec, 0, text_.c_str(),
                                                    static_cast<LONG>(text_.length()), &range);
                 RuntimeLog(L"[DoEditSession] InsertTextAtSelection hr=0x%08X", hr);
                 if (range) range->Release();
                 insert->Release();
+            } else {
+                RuntimeLog(L"[DoEditSession] QueryInterface ITfInsertAtSelection failed hr=0x%08X", hr);
             }
             service_->engine_->Reset();
             if (service_->candidate_window_) {
@@ -117,10 +135,19 @@ HRESULT RequestCompositionEditSession(TextService* service, ITfContext* context,
         new (std::nothrow) CompositionEditSession(service, context, text, mode);
     if (!session) return E_OUTOFMEMORY;
 
+    HRESULT hr_session = S_OK;
     HRESULT hr = context->RequestEditSession(service->client_id(), session,
-                                             TF_ES_SYNC | TF_ES_READWRITE, nullptr);
+                                             TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, &hr_session);
     session->Release();
-    return hr;
+    if (FAILED(hr)) {
+        RuntimeLog(L"[RequestCompositionEditSession] RequestEditSession failed hr=0x%08X", hr);
+        return hr;
+    }
+    if (FAILED(hr_session)) {
+        RuntimeLog(L"[RequestCompositionEditSession] EditSession failed hr=0x%08X", hr_session);
+        return hr_session;
+    }
+    return S_OK;
 }
 
 TextService::TextService() {
@@ -173,12 +200,15 @@ IFACEMETHODIMP TextService::Activate(ITfThreadMgr* thread_mgr, TfClientId client
     thread_mgr_->AddRef();
     client_id_ = client_id;
 
-    RuntimeLog(L"[Activate] client_id=%u", client_id);
+    RuntimeLog(L"[Activate] client_id=%u module_dir='%s'", client_id, GetModuleDirectory().c_str());
 
     // Load encoding table from DLL directory.
     std::wstring data_path = GetModuleDirectory() + L"\\data\\wubi_86.json";
     bool loaded = engine_->LoadFromFile(data_path);
     RuntimeLog(L"[Activate] loading '%s' result=%d", data_path.c_str(), loaded);
+    if (!loaded) {
+        RuntimeLog(L"[Activate] WARNING: failed to load encoding table");
+    }
 
     // Create candidate window.
     candidate_window_ = std::make_unique<CandidateWindow>();
@@ -278,7 +308,12 @@ IFACEMETHODIMP TextService::OnSetFocus(BOOL foreground) { return S_OK; }
 
 IFACEMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPARAM lparam, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
-    *eaten = IsKeyEaten(wparam, lparam) ? TRUE : FALSE;
+    bool eaten_bool = IsKeyEaten(wparam, lparam);
+    *eaten = eaten_bool ? TRUE : FALSE;
+    if (wparam >= 'A' && wparam <= 'Z') {
+        RuntimeLog(L"[OnTestKeyDown] vk=0x%02X eaten=%d chinese=%d",
+                   wparam, eaten_bool, engine_->IsChineseMode());
+    }
     return S_OK;
 }
 
@@ -310,6 +345,10 @@ IFACEMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM
     if (result.committed && !result.committed_text.empty()) {
         HRESULT hr = CommitText(context, result.committed_text);
         RuntimeLog(L"[OnKeyDown] CommitText hr=0x%08X", hr);
+        // Ensure candidate window is hidden after a successful commit.
+        if (SUCCEEDED(hr) && candidate_window_) {
+            candidate_window_->Hide();
+        }
     } else if (result.consumed) {
         if (engine_->GetCompositionString().empty()) {
             HRESULT hr = EndComposition(context);
@@ -354,12 +393,20 @@ IFACEMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ecWrite, ITfCom
 bool TextService::IsKeyEaten(WPARAM wparam, LPARAM lparam) {
     bool ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
-    bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
     bool win = (GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000);
 
     if (ctrl || alt || win) return false;
 
-    if (wparam >= 'A' && wparam <= 'Z') return true;
+    // Letter keys are only consumed in Chinese mode.
+    if (wparam >= 'A' && wparam <= 'Z') {
+        return engine_->IsChineseMode();
+    }
+
+    // Standalone Shift toggles Chinese/English mode.
+    if (wparam == VK_SHIFT) {
+        return true;
+    }
+
     if (wparam >= '0' && wparam <= '9') {
         return !engine_->GetCompositionString().empty();
     }
@@ -393,6 +440,7 @@ std::string TextService::VirtualKeyToName(WPARAM wparam, LPARAM lparam) {
         case VK_NEXT: return "pagedown";
         case VK_RETURN: return "return";
         case VK_TAB: return "tab";
+        case VK_SHIFT: return "shift";
         default: return {};
     }
 }
@@ -449,10 +497,19 @@ HRESULT TextService::EndComposition(ITfContext* context) {
     if (!session) return E_OUTOFMEMORY;
 
     // Passing an empty commit session will end the existing composition.
+    HRESULT hr_session = S_OK;
     HRESULT hr = context->RequestEditSession(client_id_, session,
-                                             TF_ES_SYNC | TF_ES_READWRITE, nullptr);
+                                             TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, &hr_session);
     session->Release();
-    return hr;
+    if (FAILED(hr)) {
+        RuntimeLog(L"[EndComposition] RequestEditSession failed hr=0x%08X", hr);
+        return hr;
+    }
+    if (FAILED(hr_session)) {
+        RuntimeLog(L"[EndComposition] EditSession failed hr=0x%08X", hr_session);
+        return hr_session;
+    }
+    return S_OK;
 }
 
 HRESULT TextService::UpdateComposition(ITfContext* context, const std::wstring& text) {

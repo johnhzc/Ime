@@ -1,7 +1,10 @@
-"""PyInstaller 打包入口脚本（Win11 简化版）
+"""PyInstaller 打包入口脚本（Python 原型版本，Win11 简化版）
 
 直接启动输入法，不强制要求管理员权限。
 Windows 11 下 keyboard 库的 WH_KEYBOARD_LL 钩子不需要管理员权限。
+
+注意：当前项目主推实现为 wubi_ime_tsf/ 下的 TSF 原生输入法 DLL。
+本入口仅用于早期 Python 原型版本。
 """
 
 import sys
@@ -20,7 +23,7 @@ if base_dir not in sys.path:
 def main():
     """主函数"""
     print("=" * 50)
-    print("五笔输入法启动中...")
+    print("五笔输入法启动中（Python 原型版本）...")
     print("=" * 50)
     print()
     

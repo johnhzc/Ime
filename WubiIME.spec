@@ -1,4 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
+# PyInstaller spec for the legacy Python prototype version.
+# The primary implementation is now the TSF native DLL in wubi_ime_tsf/.
 
 
 a = Analysis(

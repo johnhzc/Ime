@@ -1,4 +1,8 @@
-# 五笔输入法 (Wubi IME)
+# 五笔输入法 Python 原型版本
+
+> 这是项目的早期原型版本，使用 Python + 全局键盘钩子 + `SendInput` 实现。
+> 
+> 当前项目主推版本为 **Windows Text Services Framework (TSF) 原生输入法 DLL**，位于 [`wubi_ime_tsf/`](../wubi_ime_tsf/README.md)。该 Python 版本目前仅作为参考、学习与备用。
 
 一个适用于 Windows 的纯 Python 五笔输入法程序。
 

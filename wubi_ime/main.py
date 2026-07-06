@@ -1,4 +1,7 @@
-"""五笔输入法主程序（Win11 优化版）
+"""五笔输入法主程序（Python 原型版本，Win11 优化版）
+
+注意：当前项目主推实现为 wubi_ime_tsf/ 下的 TSF 原生输入法 DLL。
+本文件属于早期 Python 原型，仅作为参考与备用。
 
 主线程负责：
 1. 从 KeyboardHandler 的队列中取出按键事件；
@@ -11,7 +14,6 @@
 
 import sys
 import os
-import time
 import threading
 import traceback
 import ctypes
@@ -25,6 +27,38 @@ from .keyboard_handler import KeyboardHandler
 from .ui.candidate_window import CandidateWindow, get_cursor_position
 from .ui.status_window import StatusWindow
 from .config import Config
+
+
+# Win32 SendInput 相关结构体（模块级别定义，避免每次发送时重建）
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", ctypes.wintypes.WORD),
+        ("wScan", ctypes.wintypes.WORD),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("time", ctypes.wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class _INPUT_UNION(ctypes.Union):
+    _fields_ = [
+        ("mi", ctypes.c_byte * 28),   # MOUSEINPUT 占位
+        ("ki", _KEYBDINPUT),
+        ("hi", ctypes.c_byte * 8),    # HARDWAREINPUT 占位
+    ]
+
+
+class _INPUT(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.wintypes.DWORD),
+        ("u", _INPUT_UNION),
+    ]
+
+
+# SendInput 常量
+_INPUT_KEYBOARD = 1
+_KEYEVENTF_UNICODE = 0x0004
+_KEYEVENTF_KEYUP = 0x0002
 
 
 class WubiIME:
@@ -110,7 +144,7 @@ class WubiIME:
                             candidate = data
                     if candidate:
                         self._send_output(candidate)
-                    self.engine.clear()
+                    # engine.select_candidate 已内部调用 clear，无需重复清空
                     self._update_ui()
 
                 elif action == Action.DELETE:
@@ -190,6 +224,7 @@ class WubiIME:
         """发送输出到当前应用程序
 
         关键：发送前先取消键盘钩子，防止 SendInput 触发的按键事件重新进入队列。
+        使用标准 Win32 INPUT union 结构体，确保 SendInput 能正确接收 Unicode 输入。
         """
         if not text:
             return
@@ -201,43 +236,35 @@ class WubiIME:
             # 2. 使用 SendInput 发送 Unicode 文本
             user32 = ctypes.windll.user32
 
-            class KEYBDINPUT(ctypes.Structure):
-                _fields_ = [
-                    ("wVk", ctypes.wintypes.WORD),
-                    ("wScan", ctypes.wintypes.WORD),
-                    ("dwFlags", ctypes.wintypes.DWORD),
-                    ("time", ctypes.wintypes.DWORD),
-                    ("dwExtraInfo", ctypes.c_size_t),
-                ]
-
-            class INPUT(ctypes.Structure):
-                _fields_ = [
-                    ("type", ctypes.wintypes.DWORD),
-                    ("ki", KEYBDINPUT),
-                ]
-
             inputs = []
             for ch in text:
                 scan_code = ord(ch)
 
-                # KEYDOWN (KEYEVENTF_UNICODE = 0x0004)
-                ki = KEYBDINPUT(0, scan_code, 0x0004, 0, 0)
-                inp = INPUT()
-                inp.type = 1
-                inp.ki = ki
+                # KEYDOWN (KEYEVENTF_UNICODE)
+                ki = _KEYBDINPUT(
+                    0, scan_code, _KEYEVENTF_UNICODE, 0, 0
+                )
+                inp = _INPUT(
+                    _INPUT_KEYBOARD, _INPUT_UNION(ki=ki)
+                )
                 inputs.append(inp)
 
-                # KEYUP (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP = 0x0006)
-                ki = KEYBDINPUT(0, scan_code, 0x0004 | 0x0002, 0, 0)
-                inp = INPUT()
-                inp.type = 1
-                inp.ki = ki
-                inputs.append(inp)
+                # KEYUP (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)
+                ki_up = _KEYBDINPUT(
+                    0, scan_code, _KEYEVENTF_UNICODE | _KEYEVENTF_KEYUP, 0, 0
+                )
+                inp_up = _INPUT(
+                    _INPUT_KEYBOARD, _INPUT_UNION(ki=ki_up)
+                )
+                inputs.append(inp_up)
 
             if inputs:
                 n = len(inputs)
-                arr = (INPUT * n)(*inputs)
-                user32.SendInput(n, ctypes.byref(arr), ctypes.sizeof(INPUT))
+                arr = (_INPUT * n)(*inputs)
+                ret = user32.SendInput(n, ctypes.byref(arr), ctypes.sizeof(_INPUT))
+                if ret == 0:
+                    error_code = ctypes.get_last_error()
+                    print(f"SendInput 返回 0，错误码: {error_code}")
 
         except Exception as e:
             print(f"发送输出失败: {e}")
@@ -278,31 +305,32 @@ class WubiIME:
     def _on_activation_hotkey(self):
         """激活/关闭输入法
 
+        注意：调用方必须已持有 self._lock，本方法不再重复加锁，避免死锁。
         激活时临时切换到英文键盘布局，避免百度、微信等 TSF 输入法
         抢占按键；关闭时恢复之前的布局。
         """
-        with self._lock:
-            if self.engine.is_active():
-                # 恢复之前的系统键盘布局
-                if self._previous_hkl is not None:
-                    self._set_foreground_hkl(self._previous_hkl)
-                    self._previous_hkl = None
-                self.engine.deactivate()
-                self.candidate_window.hide()
-                self.status_window.hide()
-                print("\n[五笔输入法已关闭]")
-            else:
-                # 保存当前布局并切换到英文，确保全局钩子能拦截按键
-                self._previous_hkl = self._get_foreground_hkl()
-                self._switch_to_english_layout()
-                self.engine.activate()
-                self.status_window.show()
-                self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
-                print("\n[五笔输入法已激活]")
+        if self.engine.is_active():
+            # 恢复之前的系统键盘布局
+            if self._previous_hkl is not None:
+                self._set_foreground_hkl(self._previous_hkl)
+                self._previous_hkl = None
+            self.engine.deactivate()
+            self.candidate_window.hide()
+            self.status_window.hide()
+            print("\n[五笔输入法已关闭]")
+        else:
+            # 保存当前布局并切换到英文，确保全局钩子能拦截按键
+            self._previous_hkl = self._get_foreground_hkl()
+            self._switch_to_english_layout()
+            self.engine.activate()
+            self.status_window.show()
+            self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
+            print("\n[五笔输入法已激活]")
 
     def _on_status_click(self):
         """状态窗口点击回调"""
-        self._on_activation_hotkey()
+        with self._lock:
+            self._on_activation_hotkey()
 
     def _show_startup_dialog(self):
         """显示启动确认对话框
@@ -374,9 +402,10 @@ class WubiIME:
             self.status_window.set_chinese_mode(self.engine.is_chinese_mode())
             print("[OK] 状态窗口已显示（右下角）")
 
-            # 默认激活输入法
+            # 默认激活输入法并切换到英文布局，避免 TSF 输入法抢占按键
             self.engine.activate()
-            print("[OK] 输入法已激活")
+            self._switch_to_english_layout()
+            print("[OK] 输入法已激活，已切换至英文键盘布局")
 
             # 显示启动确认对话框
             self._show_startup_dialog()
@@ -386,11 +415,9 @@ class WubiIME:
 
             # 主循环：处理按键事件和 tkinter 事件
             while self._running:
-                # 处理所有已排队的按键事件
-                while True:
-                    key = self.keyboard.get_key_event(block=False)
-                    if key is None:
-                        break
+                # 阻塞等待按键事件（最多 20ms），无事件时让出 CPU
+                key = self.keyboard.get_key_event(block=True, timeout=0.02)
+                if key is not None:
                     self._on_key(key)
 
                 # 刷新 tkinter UI（处理窗口消息）
@@ -398,8 +425,6 @@ class WubiIME:
                     self._root.update()
                 except tk.TclError:
                     break
-
-                time.sleep(0.005)
 
         except Exception as e:
             print(f"\n[FAIL] 启动失败: {e}")
