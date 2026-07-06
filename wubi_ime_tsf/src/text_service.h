@@ -65,7 +65,7 @@ private:
 
     bool IsKeyEaten(WPARAM wparam, LPARAM lparam);
     std::string VirtualKeyToName(WPARAM wparam, LPARAM lparam);
-    void UpdateCandidateWindow();
+    void UpdateCandidateWindow(ITfContext* context);
     void OnCandidateSelected(int index);
 
     LONG ref_count_ = 1;

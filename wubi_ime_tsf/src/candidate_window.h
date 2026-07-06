@@ -14,10 +14,10 @@ public:
     CandidateWindow();
     ~CandidateWindow();
 
-    bool Create(HINSTANCE instance);
+    bool Create(HINSTANCE instance, HWND parent = nullptr);
     void Destroy();
 
-    void Show();
+    void Show(HWND parent = nullptr);
     void Hide();
     bool IsVisible() const;
 
@@ -37,6 +37,7 @@ private:
     int HitTest(int x, int y) const;
 
     HWND hwnd_ = nullptr;
+    HWND parent_ = nullptr;
     HINSTANCE instance_ = nullptr;
     std::wstring class_name_;
     std::wstring composition_;

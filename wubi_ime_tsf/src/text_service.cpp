@@ -387,7 +387,7 @@ IFACEMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM
             RuntimeLog(L"[OnKeyDown] UpdateComposition hr=0x%08X", hr);
         }
         if (result.need_update_ui) {
-            UpdateCandidateWindow();
+            UpdateCandidateWindow(context);
         }
     }
 
@@ -474,7 +474,7 @@ std::string TextService::VirtualKeyToName(WPARAM wparam, LPARAM lparam) {
     }
 }
 
-void TextService::UpdateCandidateWindow() {
+void TextService::UpdateCandidateWindow(ITfContext* context) {
     if (!candidate_window_) return;
 
     auto candidates = engine_->GetCandidates();
@@ -485,9 +485,23 @@ void TextService::UpdateCandidateWindow() {
         return;
     }
 
+    // 优先通过 TSF 获取当前文档视图的 HWND 作为候选窗 owner。
+    HWND parent = nullptr;
+    if (context) {
+        ITfContextView* view = nullptr;
+        if (SUCCEEDED(context->GetActiveView(&view)) && view) {
+            HWND hwnd_view = nullptr;
+            if (SUCCEEDED(view->GetWnd(&hwnd_view))) {
+                parent = hwnd_view;
+            }
+            view->Release();
+        }
+    }
+    RuntimeLog(L"[UpdateCandidateWindow] parent=0x%p candidates=%zu", parent, candidates.size());
+
     auto [x, y] = GetCaretPosition();
     // 延迟创建候选窗口，创建后再移动到光标位置并刷新内容。
-    candidate_window_->Show();
+    candidate_window_->Show(parent);
     candidate_window_->MoveTo(x, y);
     candidate_window_->Update(engine_->GetCompositionString(), candidates,
                               page_info.first, page_info.second);

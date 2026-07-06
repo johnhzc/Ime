@@ -14,9 +14,10 @@ CandidateWindow::~CandidateWindow() {
     Destroy();
 }
 
-bool CandidateWindow::Create(HINSTANCE instance) {
+bool CandidateWindow::Create(HINSTANCE instance, HWND parent) {
     instance_ = instance ? instance : GetInstanceHandle();
-    RuntimeLog(L"[CandidateWindow::Create] instance=0x%p", instance_);
+    parent_ = parent;
+    RuntimeLog(L"[CandidateWindow::Create] instance=0x%p parent=0x%p", instance_, parent_);
 
     // 生成一个尽量唯一的窗口类名；如果上一次注册仍有窗口残留，尝试不同后缀。
     static int suffix_counter = 0;
@@ -62,11 +63,20 @@ bool CandidateWindow::Create(HINSTANCE instance) {
     RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW atom=0x%04X class='%s'",
                atom, class_name_.c_str());
 
-    HWND owner = GetForegroundWindow();
-    if (!owner) {
+    // 优先使用调用者传入的父窗口（TSF 文档视图 HWND），否则尝试前台窗口/焦点窗口。
+    HWND owner = parent_;
+    if (!owner || !IsWindow(owner)) {
+        owner = GetForegroundWindow();
+    }
+    if (!owner || !IsWindow(owner)) {
+        owner = GetFocus();
+    }
+    if (!owner || !IsWindow(owner)) {
         owner = HWND_DESKTOP;
     }
+    RuntimeLog(L"[CandidateWindow::Create] owner=0x%p", owner);
 
+    SetLastError(0);
     hwnd_ = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
         class_name_.c_str(),
@@ -97,9 +107,12 @@ void CandidateWindow::Destroy() {
     }
 }
 
-void CandidateWindow::Show() {
+void CandidateWindow::Show(HWND parent) {
+    if (parent) {
+        parent_ = parent;
+    }
     if (!hwnd_) {
-        if (!Create(instance_ ? instance_ : GetInstanceHandle())) {
+        if (!Create(instance_ ? instance_ : GetInstanceHandle(), parent_)) {
             return;
         }
     }
