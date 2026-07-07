@@ -63,18 +63,17 @@ bool CandidateWindow::Create(HINSTANCE instance, HWND parent) {
     RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW atom=0x%04X class='%s'",
                atom, class_name_.c_str());
 
-    // 优先使用调用者传入的父窗口（TSF 文档视图 HWND），否则尝试前台窗口/焦点窗口。
-    HWND owner = parent_;
-    if (!owner || !IsWindow(owner)) {
-        owner = GetForegroundWindow();
-    }
-    if (!owner || !IsWindow(owner)) {
-        owner = GetFocus();
-    }
-    if (!owner || !IsWindow(owner)) {
-        owner = HWND_DESKTOP;
-    }
-    RuntimeLog(L"[CandidateWindow::Create] owner=0x%p", owner);
+    // 候选窗口作为独立的顶层工具窗口创建。
+    // 不使用 TSF 文档视图 HWND 作为 owner，因为该 HWND 可能跨进程或无效，
+    // 会导致 CreateWindowExW 失败（错误 1400）。
+    // 改用桌面窗口句柄作为 owner，确保句柄始终有效。
+    HWND owner = GetDesktopWindow();
+    RuntimeLog(L"[CandidateWindow::Create] owner=0x%p (desktop)", owner);
+
+    // 确保线程存在消息队列（某些 TSF 宿主可能没有）。
+    // PeekMessage + PM_NOREMOVE 是零副作用的消息队列初始化惯用写法。
+    MSG msg;
+    PeekMessage(&msg, nullptr, 0, 0, PM_NOREMOVE);
 
     SetLastError(0);
     hwnd_ = CreateWindowExW(
