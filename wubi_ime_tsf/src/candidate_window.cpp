@@ -93,8 +93,22 @@ bool CandidateWindow::Create(HINSTANCE instance, HWND parent) {
         return false;
     }
 
+    // Compute DPI scale based on the monitor of the new window.
+    UINT dpi_x = 96, dpi_y = 96;
+    HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
+    HMODULE shcore = GetModuleHandleW(L"shcore.dll");
+    if (shcore) {
+        typedef HRESULT (WINAPI* GetDpiForMonitorFunc)(HMONITOR, int, UINT*, UINT*);
+        auto get_dpi = reinterpret_cast<GetDpiForMonitorFunc>(GetProcAddress(shcore, "GetDpiForMonitor"));
+        if (get_dpi) {
+            get_dpi(monitor, 0, &dpi_x, &dpi_y);
+        }
+    }
+    dpi_scale_ = static_cast<double>(dpi_y) / 96.0;
+    RuntimeLog(L"[CandidateWindow::Create] succeeded hwnd=0x%p dpi=%u scale=%.2f",
+               hwnd_, dpi_y, dpi_scale_);
+
     ShowWindow(hwnd_, SW_HIDE);
-    RuntimeLog(L"[CandidateWindow::Create] succeeded hwnd=0x%p", hwnd_);
     return true;
 }
 
@@ -133,9 +147,15 @@ bool CandidateWindow::IsVisible() const {
 void CandidateWindow::MoveTo(int x, int y) {
     if (!hwnd_) return;
 
-    int width = padding_ * 2 + static_cast<int>(candidates_.size()) * item_width_;
-    width = std::max(width, 200);
-    int height = padding_ * 2 + code_height_ + item_height_ + page_height_;
+    int s_padding = Scale(padding_);
+    int s_item_width = Scale(item_width_);
+    int s_item_height = Scale(item_height_);
+    int s_code_height = Scale(code_height_);
+    int s_page_height = Scale(page_height_);
+
+    int width = s_padding * 2 + static_cast<int>(candidates_.size()) * s_item_width;
+    width = std::max(width, Scale(200));
+    int height = s_padding * 2 + s_code_height + s_item_height + s_page_height;
 
     HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = {};
@@ -230,50 +250,57 @@ void CandidateWindow::Paint(HDC hdc) {
     DeleteObject(border_pen);
 
     // Composition code
-    HFONT code_font = CreateFontW(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    HFONT code_font = CreateFontW(Scale(18), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
     HGDIOBJ old_font = SelectObject(hdc, code_font);
     SetTextColor(hdc, RGB(0, 120, 212));
     SetBkMode(hdc, TRANSPARENT);
 
-    RECT code_rc = {padding_, padding_, rc.right - padding_, padding_ + code_height_};
+    int s_padding = Scale(padding_);
+    int s_code_height = Scale(code_height_);
+    int s_item_height = Scale(item_height_);
+    int s_item_width = Scale(item_width_);
+    int s_page_height = Scale(page_height_);
+
+    RECT code_rc = {s_padding, s_padding, rc.right - s_padding, s_padding + s_code_height};
     DrawTextW(hdc, composition_.c_str(), -1, &code_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Candidates
-    HFONT cand_font = CreateFontW(20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    HFONT cand_font = CreateFontW(Scale(26), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
     SelectObject(hdc, cand_font);
     SetTextColor(hdc, RGB(31, 31, 31));
 
-    int y = padding_ + code_height_;
+    int y = s_padding + s_code_height;
+    int idx_width = Scale(24);
     for (size_t i = 0; i < candidates_.size(); ++i) {
-        int x = padding_ + static_cast<int>(i) * item_width_;
+        int x = s_padding + static_cast<int>(i) * s_item_width;
 
         // Index
         SetTextColor(hdc, RGB(0, 120, 212));
         std::wstringstream idx_ss;
         idx_ss << (i + 1) << L".";
-        RECT idx_rc = {x, y, x + 20, y + item_height_};
+        RECT idx_rc = {x, y, x + idx_width, y + s_item_height};
         DrawTextW(hdc, idx_ss.str().c_str(), -1, &idx_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
         // Character
         SetTextColor(hdc, RGB(31, 31, 31));
-        RECT char_rc = {x + 20, y, x + item_width_, y + item_height_};
+        RECT char_rc = {x + idx_width, y, x + s_item_width, y + s_item_height};
         DrawTextW(hdc, candidates_[i].c_str(), -1, &char_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
     // Page info
-    HFONT page_font = CreateFontW(12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT page_font = CreateFontW(Scale(14), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
     SelectObject(hdc, page_font);
     SetTextColor(hdc, RGB(102, 102, 102));
     std::wstringstream page_ss;
     page_ss << L"[" << page_ << L"/" << total_pages_ << L"]";
-    RECT page_rc = {padding_, rc.bottom - padding_ - page_height_,
-                    rc.right - padding_, rc.bottom - padding_};
+    RECT page_rc = {s_padding, rc.bottom - s_padding - s_page_height,
+                    rc.right - s_padding, rc.bottom - s_padding};
     DrawTextW(hdc, page_ss.str().c_str(), -1, &page_rc, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 
     SelectObject(hdc, old_font);
@@ -283,9 +310,13 @@ void CandidateWindow::Paint(HDC hdc) {
 }
 
 int CandidateWindow::HitTest(int x, int y) const {
-    int y_start = padding_ + code_height_;
-    if (y < y_start || y > y_start + item_height_) return -1;
-    int index = (x - padding_) / item_width_;
+    int s_padding = Scale(padding_);
+    int s_code_height = Scale(code_height_);
+    int s_item_height = Scale(item_height_);
+    int s_item_width = Scale(item_width_);
+    int y_start = s_padding + s_code_height;
+    if (y < y_start || y > y_start + s_item_height) return -1;
+    int index = (x - s_padding) / s_item_width;
     if (index >= 0 && index < static_cast<int>(candidates_.size())) {
         return index;
     }

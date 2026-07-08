@@ -161,7 +161,7 @@ public:
             return result;
         }
 
-        if (key == "pageup") {
+        if (key == "pageup" || key == "[" || key == ",") {
             if (page_ > 0) {
                 --page_;
                 result.consumed = true;
@@ -170,7 +170,7 @@ public:
             return result;
         }
 
-        if (key == "pagedown") {
+        if (key == "pagedown" || key == "]" || key == ".") {
             int total = (static_cast<int>(candidates_.size()) + kPageSize - 1) / kPageSize;
             if (page_ < total - 1) {
                 ++page_;

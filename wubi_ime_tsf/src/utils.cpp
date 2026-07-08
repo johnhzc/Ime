@@ -86,15 +86,18 @@ std::pair<int, int> GetCaretPosition() {
     if (hwnd_fore) {
         DWORD tid = GetWindowThreadProcessId(hwnd_fore, nullptr);
         if (GetGUIThreadInfo(tid, &gui_info)) {
-            int x = gui_info.rcCaret.left;
-            int y = gui_info.rcCaret.bottom + 2;
             HWND hwnd_caret = gui_info.hwndCaret ? gui_info.hwndCaret : gui_info.hwndFocus;
-            if (hwnd_caret) {
+            // If the caret rectangle is empty, fall back to the mouse cursor
+            // so the candidate window does not stick to the top-left corner.
+            bool caret_empty = (gui_info.rcCaret.left == 0 && gui_info.rcCaret.top == 0 &&
+                                gui_info.rcCaret.right == 0 && gui_info.rcCaret.bottom == 0);
+            if (hwnd_caret && !caret_empty) {
+                int x = gui_info.rcCaret.left;
+                int y = gui_info.rcCaret.bottom + 2;
                 POINT pt = {x, y};
                 ClientToScreen(hwnd_caret, &pt);
                 return {pt.x, pt.y};
             }
-            return {x, y};
         }
     }
 

@@ -113,6 +113,17 @@ public:
                 range->Release();
 
                 if (mode_ == Mode::Commit) {
+                    // Move caret to the end of committed text so the cursor
+                    // appears right after the output characters.
+                    HRESULT hr_collapse = range->Collapse(ec, TF_ANCHOR_END);
+                    RuntimeLog(L"[DoEditSession] Collapse end hr=0x%08X", hr_collapse);
+                    TF_SELECTION selection = {};
+                    selection.range = range;
+                    selection.style.ase = TF_AE_NONE;
+                    selection.style.fInterimChar = FALSE;
+                    HRESULT hr_sel = context_->SetSelection(ec, 1, &selection);
+                    RuntimeLog(L"[DoEditSession] SetSelection end hr=0x%08X", hr_sel);
+
                     hr = service_->composition_->EndComposition(ec);
                     RuntimeLog(L"[DoEditSession] EndComposition hr=0x%08X", hr);
                     service_->composition_->Release();
@@ -446,6 +457,10 @@ bool TextService::IsKeyEaten(WPARAM wparam, LPARAM lparam) {
         case VK_ESCAPE:
         case VK_PRIOR:
         case VK_NEXT:
+        case VK_OEM_4:   // '['
+        case VK_OEM_6:   // ']'
+        case VK_OEM_COMMA:
+        case VK_OEM_PERIOD:
             return !engine_->GetCompositionString().empty();
         default:
             return false;
@@ -470,6 +485,10 @@ std::string TextService::VirtualKeyToName(WPARAM wparam, LPARAM lparam) {
         case VK_RETURN: return "return";
         case VK_TAB: return "tab";
         case VK_SHIFT: return "shift";
+        case VK_OEM_4: return "[";
+        case VK_OEM_6: return "]";
+        case VK_OEM_COMMA: return ",";
+        case VK_OEM_PERIOD: return ".";
         default: return {};
     }
 }
