@@ -14,19 +14,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_FILE = os.path.join(ROOT, "wubi_ime_tsf", "src", "candidate_window.cpp")
-
-LATEST_BUILD_MARKER = os.path.join(ROOT, "wubi_ime_tsf", "scripts", "latest_build_dir.txt")
-DLL_FILE = ""
-if os.path.exists(LATEST_BUILD_MARKER):
-    with open(LATEST_BUILD_MARKER, "r", encoding="utf-8") as f:
-        build_dir = f.read().strip()
-    DLL_FILE = os.path.join(build_dir, "bin", "WubiIME_TSF.dll")
-if not DLL_FILE or not os.path.exists(DLL_FILE):
-    for build_name in ("build3", "build2", "build"):
-        candidate = os.path.join(ROOT, "wubi_ime_tsf", build_name, "bin", "WubiIME_TSF.dll")
-        if os.path.exists(candidate):
-            DLL_FILE = candidate
-            break
+DLL_FILE = os.path.join(ROOT, "wubi_ime_tsf", "build", "bin", "WubiIME_TSF.dll")
 
 
 def check_source_modifications() -> list:
@@ -131,7 +119,7 @@ def main():
         print("  This script verifies source changes and build artifacts.")
         print("  Actual candidate window display must be tested in Windows")
         print("  after registering the DLL with administrator privileges.")
-        print("  Register script: wubi_ime_tsf\\scripts\\register_latest.bat")
+        print("  Register script: wubi_ime_tsf\\scripts\\register.bat")
         sys.exit(0)
 
 
