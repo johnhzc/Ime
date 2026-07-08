@@ -63,12 +63,11 @@ bool CandidateWindow::Create(HINSTANCE instance, HWND parent) {
     RuntimeLog(L"[CandidateWindow::Create] RegisterClassExW atom=0x%04X class='%s'",
                atom, class_name_.c_str());
 
-    // 候选窗口作为独立的顶层工具窗口创建。
-    // 不使用 TSF 文档视图 HWND 作为 owner，因为该 HWND 可能跨进程或无效，
-    // 会导致 CreateWindowExW 失败（错误 1400）。
-    // 改用桌面窗口句柄作为 owner，确保句柄始终有效。
-    HWND owner = GetDesktopWindow();
-    RuntimeLog(L"[CandidateWindow::Create] owner=0x%p (desktop)", owner);
+    // 候选窗口作为独立的顶层工具窗口创建，不依赖外部窗口句柄。
+    // 早期尝试用 GetDesktopWindow() 作为 owner 仍会失败；根本原因是
+    // WindowProc 未在 WM_NCCREATE 中返回 TRUE。此处 owner 使用 nullptr。
+    HWND owner = nullptr;
+    RuntimeLog(L"[CandidateWindow::Create] owner=0x%p", owner);
 
     // 确保线程存在消息队列（某些 TSF 宿主可能没有）。
     // PeekMessage + PM_NOREMOVE 是零副作用的消息队列初始化惯用写法。
@@ -175,6 +174,8 @@ LRESULT CALLBACK CandidateWindow::WindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     if (msg == WM_NCCREATE) {
         LPCREATESTRUCT cs = reinterpret_cast<LPCREATESTRUCT>(lparam);
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
+        // WM_NCCREATE 必须返回 TRUE，否则 Windows 会终止窗口创建并返回 nullptr。
+        return TRUE;
     }
 
     CandidateWindow* window = reinterpret_cast<CandidateWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));

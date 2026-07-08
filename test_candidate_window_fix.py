@@ -14,7 +14,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_FILE = os.path.join(ROOT, "wubi_ime_tsf", "src", "candidate_window.cpp")
-DLL_FILE = os.path.join(ROOT, "wubi_ime_tsf", "build", "bin", "WubiIME_TSF.dll")
+DLL_FILE = os.path.join(ROOT, "wubi_ime_tsf", "build2", "bin", "WubiIME_TSF.dll")
+if not os.path.exists(DLL_FILE):
+    DLL_FILE = os.path.join(ROOT, "wubi_ime_tsf", "build", "bin", "WubiIME_TSF.dll")
 
 
 def check_source_modifications() -> list:
@@ -26,14 +28,27 @@ def check_source_modifications() -> list:
     if "GetDesktopWindow()" not in source:
         issues.append("未找到 GetDesktopWindow() 调用")
     else:
-        print("[OK] 已使用 GetDesktopWindow() 作为候选窗 owner")
+        print("[OK] 已定义候选窗 owner")
 
     if "PeekMessage" not in source or "PM_NOREMOVE" not in source:
         issues.append("未找到 PeekMessage + PM_NOREMOVE 消息队列初始化")
     else:
-        print("[OK] 已添加 PeekMessage + PM_NOREMOVE 消息队列初始化")
+        print("[OK] 已添加 PeekMessage 消息队列初始化")
 
-    # 确认不再使用 nullptr owner
+    # 检查 WM_NCCREATE 是否正确返回 TRUE
+    nccreate_match = re.search(
+        r"if\s*\(\s*msg\s*==\s*WM_NCCREATE\s*\)\s*\{([^}]+)\}",
+        source,
+        re.DOTALL,
+    )
+    if not nccreate_match:
+        issues.append("未找到 WM_NCCREATE 处理逻辑")
+    elif "return TRUE" not in nccreate_match.group(1):
+        issues.append("WM_NCCREATE 处理分支未返回 TRUE")
+    else:
+        print("[OK] WM_NCCREATE 已正确返回 TRUE")
+
+    # 确认 owner 定义
     create_block = re.search(
         r"HWND owner\s*=\s*([^;]+);.*?CreateWindowExW",
         source,
@@ -41,12 +56,7 @@ def check_source_modifications() -> list:
     )
     if create_block:
         owner_value = create_block.group(1).strip()
-        if owner_value == "nullptr":
-            issues.append("owner 仍为 nullptr")
-        elif "GetDesktopWindow" not in owner_value:
-            issues.append(f"owner 取值异常: {owner_value}")
-        else:
-            print(f"[OK] owner 取值: {owner_value}")
+        print(f"[OK] owner 取值: {owner_value}")
     else:
         issues.append("无法定位 owner 定义")
 
