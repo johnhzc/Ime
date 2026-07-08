@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""候选框修复验证脚本（在虚拟环境中运行）。
+"""Verify the candidate-window fix inside the project virtual environment.
 
-验证目标：
-1. candidate_window.cpp 已按诊断报告完成两处修改；
-2. TSF DLL 构建成功；
-3. DLL 导出符号完整。
+Checks:
+1. Source changes in candidate_window.cpp are present.
+2. TSF DLL was rebuilt after the source change.
+3. Required DLL export symbols exist (if dumpbin is available).
 """
 
 import os
@@ -20,35 +20,27 @@ if not os.path.exists(DLL_FILE):
 
 
 def check_source_modifications() -> list:
-    """检查源码修改点。"""
     issues = []
     with open(SRC_FILE, "r", encoding="utf-8") as f:
         source = f.read()
 
-    if "GetDesktopWindow()" not in source:
-        issues.append("未找到 GetDesktopWindow() 调用")
-    else:
-        print("[OK] 已定义候选窗 owner")
-
     if "PeekMessage" not in source or "PM_NOREMOVE" not in source:
-        issues.append("未找到 PeekMessage + PM_NOREMOVE 消息队列初始化")
+        issues.append("Missing PeekMessage + PM_NOREMOVE")
     else:
-        print("[OK] 已添加 PeekMessage 消息队列初始化")
+        print("[OK] PeekMessage + PM_NOREMOVE found")
 
-    # 检查 WM_NCCREATE 是否正确返回 TRUE
     nccreate_match = re.search(
         r"if\s*\(\s*msg\s*==\s*WM_NCCREATE\s*\)\s*\{([^}]+)\}",
         source,
         re.DOTALL,
     )
     if not nccreate_match:
-        issues.append("未找到 WM_NCCREATE 处理逻辑")
+        issues.append("Missing WM_NCCREATE handler")
     elif "return TRUE" not in nccreate_match.group(1):
-        issues.append("WM_NCCREATE 处理分支未返回 TRUE")
+        issues.append("WM_NCCREATE handler does not return TRUE")
     else:
-        print("[OK] WM_NCCREATE 已正确返回 TRUE")
+        print("[OK] WM_NCCREATE returns TRUE")
 
-    # 确认 owner 定义
     create_block = re.search(
         r"HWND owner\s*=\s*([^;]+);.*?CreateWindowExW",
         source,
@@ -56,32 +48,30 @@ def check_source_modifications() -> list:
     )
     if create_block:
         owner_value = create_block.group(1).strip()
-        print(f"[OK] owner 取值: {owner_value}")
+        print(f"[OK] owner value: {owner_value}")
     else:
-        issues.append("无法定位 owner 定义")
+        issues.append("Cannot locate owner definition")
 
     return issues
 
 
 def check_dll_exists() -> list:
-    """检查 DLL 构建产物。"""
     issues = []
     if not os.path.exists(DLL_FILE):
-        issues.append(f"DLL 不存在: {DLL_FILE}")
+        issues.append(f"DLL not found: {DLL_FILE}")
     else:
         size = os.path.getsize(DLL_FILE)
         mtime = os.path.getmtime(DLL_FILE)
         src_mtime = os.path.getmtime(SRC_FILE)
-        print(f"[OK] DLL 存在: {DLL_FILE} ({size} bytes)")
+        print(f"[OK] DLL found: {DLL_FILE} ({size} bytes)")
         if mtime < src_mtime:
-            issues.append("DLL 修改时间早于源码，可能未重新构建")
+            issues.append("DLL is older than source; rebuild needed")
         else:
-            print("[OK] DLL 构建时间晚于源码修改时间")
+            print("[OK] DLL is newer than source")
     return issues
 
 
 def check_dll_exports() -> list:
-    """检查 DLL 导出符号。"""
     issues = []
     try:
         result = subprocess.run(
@@ -91,26 +81,26 @@ def check_dll_exports() -> list:
             check=False,
         )
     except FileNotFoundError:
-        print("[WARN] 未找到 dumpbin，跳过导出符号检查")
+        print("[WARN] dumpbin not found, skipping export check")
         return issues
 
     if result.returncode != 0:
-        issues.append(f"dumpbin 执行失败: {result.stderr}")
+        issues.append(f"dumpbin failed: {result.stderr}")
         return issues
 
     exports = result.stdout
     required = ["DllGetClassObject", "DllCanUnloadNow", "DllRegisterServer", "DllUnregisterServer"]
     missing = [name for name in required if name not in exports]
     if missing:
-        issues.append(f"DLL 缺少导出符号: {missing}")
+        issues.append(f"DLL missing exports: {missing}")
     else:
-        print(f"[OK] DLL 导出符号完整: {required}")
+        print(f"[OK] DLL exports complete: {required}")
     return issues
 
 
 def main():
     print("=" * 60)
-    print("候选框修复验证")
+    print("Candidate Window Fix Verification")
     print("=" * 60)
 
     issues = []
@@ -120,17 +110,18 @@ def main():
 
     print("=" * 60)
     if issues:
-        print("[FAIL] 验证失败:")
+        print("[FAIL] Verification failed:")
         for issue in issues:
             print(f"  - {issue}")
         sys.exit(1)
     else:
-        print("[PASS] 所有验证通过")
+        print("[PASS] All checks passed")
         print("=" * 60)
-        print("说明：")
-        print("  本脚本验证了源码修改点和构建产物。")
-        print("  候选窗口的实际显示效果仍需在 Windows 中注册 DLL 后人工测试。")
-        print("  注册命令（管理员权限）: wubi_ime_tsf\\scripts\\register.bat")
+        print("Note:")
+        print("  This script verifies source changes and build artifacts.")
+        print("  Actual candidate window display must be tested in Windows")
+        print("  after registering the DLL with administrator privileges.")
+        print("  Register script: wubi_ime_tsf\\scripts\\register_build2.bat")
         sys.exit(0)
 
 

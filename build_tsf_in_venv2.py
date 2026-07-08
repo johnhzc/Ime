@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""在虚拟环境中调用 Visual Studio 环境构建 TSF DLL（输出到 build2 避免占用）。"""
+"""Build TSF DLL inside the project virtual environment.
+
+Outputs to wubi_ime_tsf/build2/ so we do not overwrite the locked build/bin DLL.
+"""
 
 import os
 import subprocess
@@ -26,16 +29,16 @@ def run_in_vcvars(command: str) -> subprocess.CompletedProcess:
 
 def main():
     if not os.path.exists(CMAKE_EXE):
-        print(f"[FAIL] 找不到 CMake: {CMAKE_EXE}")
+        print(f"[FAIL] CMake not found: {CMAKE_EXE}")
         sys.exit(1)
 
     if not os.path.exists(VCVARS):
-        print(f"[FAIL] 找不到 VS 环境脚本: {VCVARS}")
+        print(f"[FAIL] VS environment script not found: {VCVARS}")
         sys.exit(1)
 
     os.makedirs(BUILD_DIR, exist_ok=True)
 
-    print("[INFO] 配置 CMake...")
+    print("[INFO] Configuring CMake...")
     config_cmd = (
         f'"{CMAKE_EXE}" .. -G Ninja '
         f"-DCMAKE_BUILD_TYPE=Release "
@@ -47,26 +50,26 @@ def main():
     if result.stderr:
         print(result.stderr)
     if result.returncode != 0:
-        print("[FAIL] CMake 配置失败")
+        print("[FAIL] CMake configuration failed")
         sys.exit(1)
 
-    print("[INFO] 构建...")
+    print("[INFO] Building...")
     build_cmd = f'"{CMAKE_EXE}" --build . --config Release'
     result = run_in_vcvars(build_cmd)
     print(result.stdout)
     if result.stderr:
         print(result.stderr)
     if result.returncode != 0:
-        print("[FAIL] 构建失败")
+        print("[FAIL] Build failed")
         sys.exit(1)
 
     dll_path = os.path.join(BUILD_DIR, "bin", "WubiIME_TSF.dll")
     if not os.path.exists(dll_path):
-        print(f"[FAIL] 构建成功但 DLL 不存在: {dll_path}")
+        print(f"[FAIL] DLL missing after build: {dll_path}")
         sys.exit(1)
 
     size = os.path.getsize(dll_path)
-    print(f"[PASS] DLL 构建成功: {dll_path} ({size} bytes)")
+    print(f"[PASS] DLL built: {dll_path} ({size} bytes)")
 
 
 if __name__ == "__main__":

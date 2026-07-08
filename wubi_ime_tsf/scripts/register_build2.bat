@@ -2,31 +2,33 @@
 chcp 65001 >nul
 setlocal
 
-:: 需要管理员权限
+:: Administrator rights required
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 请以管理员身份运行此脚本。
+    echo Please run this script as Administrator.
     pause
     exit /b 1
 )
 
 set "DLL=%~dp0..\build2\bin\WubiIME_TSF.dll"
 if not exist "%DLL%" (
-    echo 找不到 DLL: %DLL%
-    echo 请先使用 build_tsf_in_venv2.py 构建项目。
+    echo DLL not found: %DLL%
+    echo Please build with build_tsf_in_venv2.py first.
     pause
     exit /b 1
 )
 
 del /f /q "%TEMP%\WubiIME_Register.log" 2>nul
-echo 正在注册 TSF 输入法（build2 版本）...
+echo Registering TSF IME from build2...
 regsvr32 /s "%DLL%"
 if %errorlevel% neq 0 (
-    echo 注册失败。
-    echo 详细错误信息请查看 %TEMP%\WubiIME_Register.log
+    echo Registration failed.
+    echo See %TEMP%\WubiIME_Register.log for details.
     pause
     exit /b 1
 )
 
-echo 注册成功。请注销并重新登录（或重启）以刷新语言栏，然后添加键盘"五笔输入法 (TSF)".
+echo Registration succeeded.
+echo Please sign out and sign back in (or restart) to refresh the language bar,
+echo then add keyboard "Wubi IME (TSF)" in Settings.
 pause
