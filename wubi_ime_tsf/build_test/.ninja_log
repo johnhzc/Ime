@@ -1,0 +1,14 @@
+# ninja log v7
+31	212	8051258105080169	CMakeFiles/WubiIME_TSF.dir/src/resource.rc.res	feb4705af2cd8683
+29	364	8051258105060159	CMakeFiles/WubiIME_TSF.dir/src/utils.cpp.obj	c4b0b803dcad293e
+27	468	8051258105040162	CMakeFiles/WubiIME_TSF.dir/src/candidate_window.cpp.obj	3c4156e38703107d
+21	555	8051258104980160	CMakeFiles/WubiIME_TSF.dir/src/factory.cpp.obj	b602b1767f7c253b
+19	557	8051258104960166	CMakeFiles/WubiIME_TSF.dir/src/dllmain.cpp.obj	f72843945cb4424c
+23	591	8051258105000161	CMakeFiles/WubiIME_TSF.dir/src/text_service.cpp.obj	7a72460ae389fd5b
+25	1123	8051258105020163	CMakeFiles/WubiIME_TSF.dir/src/engine.cpp.obj	d52d9cd99f12e3af
+1123	1273	8051258117071833	bin/WubiIME_TSF.dll	fb3b28b4a8e2f4e0
+1123	1273	8051258117071833	WubiIME_TSF.lib	fb3b28b4a8e2f4e0
+3	1893	8051813340499950	CMakeFiles/WubiIME_TSF.dir/src/text_service.cpp.obj	7a72460ae389fd5b
+60	1895	8051813341069783	CMakeFiles/WubiIME_TSF.dir/src/candidate_window.cpp.obj	3c4156e38703107d
+1895	2259	8051813359422051	bin/WubiIME_TSF.dll	fb3b28b4a8e2f4e0
+1895	2259	8051813359422051	WubiIME_TSF.lib	fb3b28b4a8e2f4e0

@@ -1,0 +1,3 @@
+D:/BeansWorkingSpace/lyt/ime/wubi_ime_tsf/build_test/CMakeFiles/WubiIME_TSF.dir
+D:/BeansWorkingSpace/lyt/ime/wubi_ime_tsf/build_test/CMakeFiles/edit_cache.dir
+D:/BeansWorkingSpace/lyt/ime/wubi_ime_tsf/build_test/CMakeFiles/rebuild_cache.dir

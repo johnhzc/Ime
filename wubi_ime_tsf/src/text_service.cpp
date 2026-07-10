@@ -110,19 +110,20 @@ public:
                     RuntimeLog(L"[DoEditSession] SetText hr=0x%08X len=%d", hr,
                                static_cast<int>(text_.length()));
                 }
-                range->Release();
 
                 if (mode_ == Mode::Commit) {
                     // Move caret to the end of committed text so the cursor
                     // appears right after the output characters.
                     HRESULT hr_collapse = range->Collapse(ec, TF_ANCHOR_END);
                     RuntimeLog(L"[DoEditSession] Collapse end hr=0x%08X", hr_collapse);
-                    TF_SELECTION selection = {};
-                    selection.range = range;
-                    selection.style.ase = TF_AE_NONE;
-                    selection.style.fInterimChar = FALSE;
-                    HRESULT hr_sel = context_->SetSelection(ec, 1, &selection);
-                    RuntimeLog(L"[DoEditSession] SetSelection end hr=0x%08X", hr_sel);
+                    if (SUCCEEDED(hr_collapse)) {
+                        TF_SELECTION selection = {};
+                        selection.range = range;
+                        selection.style.ase = TF_AE_NONE;
+                        selection.style.fInterimChar = FALSE;
+                        HRESULT hr_sel = context_->SetSelection(ec, 1, &selection);
+                        RuntimeLog(L"[DoEditSession] SetSelection end hr=0x%08X", hr_sel);
+                    }
 
                     hr = service_->composition_->EndComposition(ec);
                     RuntimeLog(L"[DoEditSession] EndComposition hr=0x%08X", hr);
@@ -133,6 +134,8 @@ public:
                         service_->candidate_window_->Hide();
                     }
                 }
+
+                range->Release();
             } else {
                 RuntimeLog(L"[DoEditSession] GetRange failed hr=0x%08X", hr);
             }

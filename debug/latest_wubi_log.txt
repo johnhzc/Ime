@@ -1,0 +1,120 @@
+﻿[2026-07-07 18:59:36] [DoEditSession] mode=update text='gp' composition=0x0000020F199A5250
+[2026-07-07 18:59:36] [DoEditSession] SetText hr=0x00000000 len=2
+[2026-07-07 18:59:36] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:36] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:36] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:36] [CandidateWindow::Create] RegisterClassExW atom=0xC273 class='WubiTSFCandidateWindow_22780_8'
+[2026-07-07 18:59:36] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:36] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC273 class='WubiTSFCandidateWindow_22780_8'
+[2026-07-07 18:59:37] [OnKeyDown] key=backspace eaten=1
+[2026-07-07 18:59:37] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:37] [UpdateComposition] text='g'
+[2026-07-07 18:59:37] [DoEditSession] mode=update text='g' composition=0x0000020F199A5250
+[2026-07-07 18:59:37] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:37] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:37] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:37] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:37] [CandidateWindow::Create] RegisterClassExW atom=0xC274 class='WubiTSFCandidateWindow_22780_9'
+[2026-07-07 18:59:37] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:37] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC274 class='WubiTSFCandidateWindow_22780_9'
+[2026-07-07 18:59:37] [OnKeyDown] key=backspace eaten=1
+[2026-07-07 18:59:37] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:37] [DoEditSession] mode=commit text='' composition=0x0000020F199A5250
+[2026-07-07 18:59:37] [DoEditSession] EndComposition hr=0x00000000
+[2026-07-07 18:59:37] [OnKeyDown] EndComposition hr=0x00000000
+[2026-07-07 18:59:38] [OnKeyDown] key=g eaten=1
+[2026-07-07 18:59:38] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:38] [UpdateComposition] text='g'
+[2026-07-07 18:59:38] [DoEditSession] mode=update text='g' composition=0x0000000000000000
+[2026-07-07 18:59:38] [DoEditSession] InsertTextAtSelection query hr=0x00000000
+[2026-07-07 18:59:38] [DoEditSession] StartComposition hr=0x00000000
+[2026-07-07 18:59:38] [DoEditSession] SetSelection hr=0x00000000
+[2026-07-07 18:59:38] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:38] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:38] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:38] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:38] [CandidateWindow::Create] RegisterClassExW atom=0xC275 class='WubiTSFCandidateWindow_22780_10'
+[2026-07-07 18:59:38] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:38] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC275 class='WubiTSFCandidateWindow_22780_10'
+[2026-07-07 18:59:40] [OnKeyDown] key=i eaten=1
+[2026-07-07 18:59:40] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:40] [UpdateComposition] text='gi'
+[2026-07-07 18:59:40] [DoEditSession] mode=update text='gi' composition=0x0000020F199A4E90
+[2026-07-07 18:59:40] [DoEditSession] SetText hr=0x00000000 len=2
+[2026-07-07 18:59:40] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:40] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:40] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:40] [CandidateWindow::Create] RegisterClassExW atom=0xC2D1 class='WubiTSFCandidateWindow_22780_11'
+[2026-07-07 18:59:40] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:40] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC2D1 class='WubiTSFCandidateWindow_22780_11'
+[2026-07-07 18:59:40] [OnKeyDown] key=space eaten=1
+[2026-07-07 18:59:40] [OnKeyDown] consumed=1 committed=1 text='涓?
+[2026-07-07 18:59:40] [CommitText] text='涓?
+[2026-07-07 18:59:40] [DoEditSession] mode=commit text='涓? composition=0x0000020F199A4E90
+[2026-07-07 18:59:40] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:40] [DoEditSession] EndComposition hr=0x00000000
+[2026-07-07 18:59:40] [OnKeyDown] CommitText hr=0x00000000
+[2026-07-07 18:59:42] [OnKeyDown] key=t eaten=1
+[2026-07-07 18:59:42] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:42] [UpdateComposition] text='t'
+[2026-07-07 18:59:42] [DoEditSession] mode=update text='t' composition=0x0000000000000000
+[2026-07-07 18:59:42] [DoEditSession] InsertTextAtSelection query hr=0x00000000
+[2026-07-07 18:59:42] [DoEditSession] StartComposition hr=0x00000000
+[2026-07-07 18:59:42] [DoEditSession] SetSelection hr=0x00000000
+[2026-07-07 18:59:42] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:42] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:42] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:42] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:42] [CandidateWindow::Create] RegisterClassExW atom=0xC2D2 class='WubiTSFCandidateWindow_22780_12'
+[2026-07-07 18:59:42] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:42] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC2D2 class='WubiTSFCandidateWindow_22780_12'
+[2026-07-07 18:59:42] [OnKeyDown] key=r eaten=1
+[2026-07-07 18:59:42] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:42] [UpdateComposition] text='tr'
+[2026-07-07 18:59:42] [DoEditSession] mode=update text='tr' composition=0x0000020F199A4E90
+[2026-07-07 18:59:42] [DoEditSession] SetText hr=0x00000000 len=2
+[2026-07-07 18:59:42] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:42] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:42] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:42] [CandidateWindow::Create] RegisterClassExW atom=0xC276 class='WubiTSFCandidateWindow_22780_13'
+[2026-07-07 18:59:42] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:42] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC276 class='WubiTSFCandidateWindow_22780_13'
+[2026-07-07 18:59:43] [OnKeyDown] key=space eaten=1
+[2026-07-07 18:59:43] [OnKeyDown] consumed=1 committed=1 text='鐗?
+[2026-07-07 18:59:43] [CommitText] text='鐗?
+[2026-07-07 18:59:43] [DoEditSession] mode=commit text='鐗? composition=0x0000020F199A4E90
+[2026-07-07 18:59:43] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:43] [DoEditSession] EndComposition hr=0x00000000
+[2026-07-07 18:59:43] [OnKeyDown] CommitText hr=0x00000000
+[2026-07-07 18:59:44] [OnKeyDown] key=t eaten=1
+[2026-07-07 18:59:44] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:44] [UpdateComposition] text='t'
+[2026-07-07 18:59:44] [DoEditSession] mode=update text='t' composition=0x0000000000000000
+[2026-07-07 18:59:44] [DoEditSession] InsertTextAtSelection query hr=0x00000000
+[2026-07-07 18:59:44] [DoEditSession] StartComposition hr=0x00000000
+[2026-07-07 18:59:44] [DoEditSession] SetSelection hr=0x00000000
+[2026-07-07 18:59:44] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:44] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:44] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:44] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:44] [CandidateWindow::Create] RegisterClassExW atom=0xC2D3 class='WubiTSFCandidateWindow_22780_14'
+[2026-07-07 18:59:44] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:44] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC2D3 class='WubiTSFCandidateWindow_22780_14'
+[2026-07-07 18:59:45] [OnKeyDown] key=f eaten=1
+[2026-07-07 18:59:45] [OnKeyDown] consumed=1 committed=0 text=''
+[2026-07-07 18:59:45] [UpdateComposition] text='tf'
+[2026-07-07 18:59:45] [DoEditSession] mode=update text='tf' composition=0x0000020F199A5550
+[2026-07-07 18:59:45] [DoEditSession] SetText hr=0x00000000 len=2
+[2026-07-07 18:59:45] [OnKeyDown] UpdateComposition hr=0x00000000
+[2026-07-07 18:59:45] [UpdateCandidateWindow] parent=0x0000000000020786 candidates=9
+[2026-07-07 18:59:45] [CandidateWindow::Create] instance=0x00007FFA89100000 parent=0x0000000000020786
+[2026-07-07 18:59:45] [CandidateWindow::Create] RegisterClassExW atom=0xC2D4 class='WubiTSFCandidateWindow_22780_15'
+[2026-07-07 18:59:45] [CandidateWindow::Create] owner=0x0000000000020786
+[2026-07-07 18:59:45] [CandidateWindow::Create] CreateWindowExW failed err=1400 atom=0xC2D4 class='WubiTSFCandidateWindow_22780_15'
+[2026-07-07 18:59:45] [OnKeyDown] key=space eaten=1
+[2026-07-07 18:59:45] [OnKeyDown] consumed=1 committed=1 text='琛?
+[2026-07-07 18:59:45] [CommitText] text='琛?
+[2026-07-07 18:59:45] [DoEditSession] mode=commit text='琛? composition=0x0000020F199A5550
+[2026-07-07 18:59:45] [DoEditSession] SetText hr=0x00000000 len=1
+[2026-07-07 18:59:45] [DoEditSession] EndComposition hr=0x00000000
+[2026-07-07 18:59:45] [OnKeyDown] CommitText hr=0x00000000

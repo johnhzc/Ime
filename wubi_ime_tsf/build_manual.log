@@ -1,0 +1,16 @@
+[1/5] Setting up VS environment...
+[2/5] cl.exe path:
+D:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe
+[3/5] Running CMake configure...
+CMake Warning:
+  Ignoring extra path from command line:
+
+   ".exe"
+
+
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: D:/BeansWorkingSpace/lyt/ime/wubi_ime_tsf/build
+[4/5] Running CMake build...
+[1/1] Linking CXX shared library bin\WubiIME_TSF.dll
+[5/5] Done.
