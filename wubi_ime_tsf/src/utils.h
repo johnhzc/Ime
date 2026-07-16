@@ -28,4 +28,8 @@ std::wstring GetModuleDirectory();
 // Get the HMODULE of the current DLL.
 HMODULE GetCurrentModule();
 
+// Create a consistent IME font using the project-wide Chinese font face.
+// The caller is responsible for deleting the returned HFONT.
+HFONT CreateImeFont(int height, int weight = FW_NORMAL);
+
 }  // namespace wubi_tsf

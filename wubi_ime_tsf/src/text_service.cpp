@@ -260,6 +260,40 @@ IFACEMETHODIMP TextService::Activate(ITfThreadMgr* thread_mgr, TfClientId client
     candidate_window_ = std::make_unique<CandidateWindow>();
     candidate_window_->SetSelectCallback([this](int index) { OnCandidateSelected(index); });
 
+    // 创建语言栏按钮并通过 ITfLangBarItemMgr 注册。
+    lang_bar_item_ = std::make_unique<LangBarItem>([this]() {
+        if (!engine_ || !thread_mgr_) return;
+        engine_->ToggleMode();
+        if (lang_bar_item_) {
+            lang_bar_item_->SetChineseMode(engine_->IsChineseMode());
+            lang_bar_item_->Update();
+        }
+        if (!engine_->IsChineseMode()) {
+            // 通过语言栏切换到英文时，结束当前合成并隐藏候选窗。
+            ITfDocumentMgr* doc_mgr = nullptr;
+            if (SUCCEEDED(thread_mgr_->GetFocus(&doc_mgr)) && doc_mgr) {
+                ITfContext* context = nullptr;
+                if (SUCCEEDED(doc_mgr->GetTop(&context))) {
+                    EndComposition(context);
+                    context->Release();
+                }
+                doc_mgr->Release();
+            }
+            engine_->Reset();
+            if (candidate_window_) {
+                candidate_window_->Hide();
+            }
+        }
+    });
+    lang_bar_item_->SetChineseMode(engine_->IsChineseMode());
+
+    ITfLangBarItemMgr* lb_mgr = nullptr;
+    if (SUCCEEDED(thread_mgr_->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void**>(&lb_mgr))) && lb_mgr) {
+        HRESULT hr_lb = lb_mgr->AddItem(lang_bar_item_.get());
+        RuntimeLog(L"[Activate] AddLangBarItem hr=0x%08X", hr_lb);
+        lb_mgr->Release();
+    }
+
     // Install thread manager event sink.
     ITfSource* source = nullptr;
     if (SUCCEEDED(thread_mgr_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source)))) {
@@ -300,6 +334,16 @@ IFACEMETHODIMP TextService::Deactivate() {
         composition_->EndComposition(0);
         composition_->Release();
         composition_ = nullptr;
+    }
+
+    if (lang_bar_item_) {
+        ITfLangBarItemMgr* lb_mgr = nullptr;
+        if (SUCCEEDED(thread_mgr_->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void**>(&lb_mgr))) && lb_mgr) {
+            HRESULT hr_lb = lb_mgr->RemoveItem(lang_bar_item_.get());
+            RuntimeLog(L"[Deactivate] RemoveLangBarItem hr=0x%08X", hr_lb);
+            lb_mgr->Release();
+        }
+        lang_bar_item_.reset();
     }
 
     candidate_window_.reset();
@@ -385,6 +429,12 @@ IFACEMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM
     RuntimeLog(L"[OnKeyDown] consumed=%d committed=%d text='%s'",
                result.consumed, result.committed, result.committed_text.c_str());
 
+    // Shift 切换中/英文模式时同步刷新语言栏按钮。
+    if (key_name == "shift" && lang_bar_item_) {
+        lang_bar_item_->SetChineseMode(engine_->IsChineseMode());
+        lang_bar_item_->Update();
+    }
+
     if (result.committed && !result.committed_text.empty()) {
         HRESULT hr = CommitText(context, result.committed_text);
         RuntimeLog(L"[OnKeyDown] CommitText hr=0x%08X", hr);
@@ -393,7 +443,15 @@ IFACEMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM
             candidate_window_->Hide();
         }
     } else if (result.consumed) {
-        if (engine_->GetCompositionString().empty()) {
+        if (key_name == "shift" && !engine_->IsChineseMode()) {
+            // 切换到英文模式时清空当前合成串与候选窗。
+            engine_->Reset();
+            HRESULT hr = EndComposition(context);
+            RuntimeLog(L"[OnKeyDown] EndComposition after shift-to-en hr=0x%08X", hr);
+            if (candidate_window_) {
+                candidate_window_->Hide();
+            }
+        } else if (engine_->GetCompositionString().empty()) {
             HRESULT hr = EndComposition(context);
             RuntimeLog(L"[OnKeyDown] EndComposition hr=0x%08X", hr);
         } else {
@@ -465,6 +523,9 @@ bool TextService::IsKeyEaten(WPARAM wparam, LPARAM lparam) {
         case VK_OEM_COMMA:
         case VK_OEM_PERIOD:
             return !engine_->GetCompositionString().empty();
+        case VK_RETURN:
+            // 仅在合成串非空且无候选时消费回车，避免误吞应用正常回车。
+            return !engine_->GetCompositionString().empty() && engine_->GetCandidates().empty();
         default:
             return false;
     }
@@ -497,9 +558,15 @@ std::string TextService::VirtualKeyToName(WPARAM wparam, LPARAM lparam) {
 }
 
 void TextService::UpdateCandidateWindow(ITfContext* context) {
-    if (!candidate_window_) return;
+    if (!candidate_window_ || !engine_) return;
 
-    auto candidates = engine_->GetCandidates();
+    // 英文模式下不显示候选窗。
+    if (!engine_->IsChineseMode()) {
+        candidate_window_->Hide();
+        return;
+    }
+
+    auto candidates = engine_->GetCandidatesWithHints();
     auto page_info = engine_->GetPageInfo();
 
     if (candidates.empty()) {
@@ -522,11 +589,11 @@ void TextService::UpdateCandidateWindow(ITfContext* context) {
     RuntimeLog(L"[UpdateCandidateWindow] parent=0x%p candidates=%zu", parent, candidates.size());
 
     auto [x, y] = GetCaretPosition();
-    // 延迟创建候选窗口，创建后再移动到光标位置并刷新内容。
+    // 先更新内容，再计算并移动窗口尺寸，确保 MoveTo 使用的是最新候选数据。
     candidate_window_->Show(parent);
-    candidate_window_->MoveTo(x, y);
     candidate_window_->Update(engine_->GetCompositionString(), candidates,
                               page_info.first, page_info.second);
+    candidate_window_->MoveTo(x, y);
 }
 
 void TextService::OnCandidateSelected(int index) {

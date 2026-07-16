@@ -22,8 +22,9 @@ public:
     bool IsVisible() const;
 
     void MoveTo(int x, int y);
+    // Each candidate is {character, remaining_code_hint}.
     void Update(const std::wstring& composition,
-                const std::vector<std::wstring>& candidates,
+                const std::vector<std::pair<std::wstring, std::wstring>>& candidates,
                 int page,
                 int total_pages);
 
@@ -42,13 +43,14 @@ private:
     double dpi_scale_ = 1.0;
     std::wstring class_name_;
     std::wstring composition_;
-    std::vector<std::wstring> candidates_;
+    std::vector<std::pair<std::wstring, std::wstring>> candidates_;
     int page_ = 1;
     int total_pages_ = 1;
     SelectCallback on_select_;
 
     // Layout metrics (logical pixels, scaled by dpi_scale_ at runtime)
-    int item_height_ = 38;
+    int item_height_ = 30;      // 候选字区域高度
+    int hint_height_ = 18;      // 剩余编码提示区域高度
     int padding_ = 10;
     int code_height_ = 26;
     int page_height_ = 20;

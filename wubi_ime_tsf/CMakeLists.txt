@@ -18,6 +18,8 @@ add_library(WubiIME_TSF SHARED
     src/candidate_window.h
     src/utils.cpp
     src/utils.h
+    src/lang_bar_item.cpp
+    src/lang_bar_item.h
     src/common.h
     src/resource.rc
     src/WubiIME_TSF.def

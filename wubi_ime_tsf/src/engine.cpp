@@ -105,15 +105,16 @@ public:
                 result.consumed = true;
                 result.need_update_ui = true;
 
-                // Auto-commit on exact unique 4-code match
+                // 满 4 码且有候选时直接上屏第一个候选，支持连续敲击连续出字。
                 if (code_.length() == 4) {
-                    auto exact = GetExactCandidates();
-                    if (exact.size() == 1) {
+                    auto page = GetPageCandidates();
+                    if (!page.empty()) {
                         result.committed = true;
-                        result.committed_text = exact[0];
+                        result.committed_text = page[0];
                         Reset();
                         result.need_update_ui = false;
                     }
+                    // 无候选时保留 4 位英文码在合成串中。
                 }
             }
             return result;
@@ -133,9 +134,26 @@ public:
 
         if (key == "space") {
             auto page = GetPageCandidates();
-            if (!page.empty()) {
+            if (code_.length() == 4 && page.empty()) {
+                // 满码无候选：按空格直接输出英文。
+                result.committed_text = GetCompositionString();
+                result.committed = true;
+                result.consumed = true;
+                Reset();
+            } else if (!page.empty()) {
                 result.committed = true;
                 result.committed_text = page[0];
+                result.consumed = true;
+                Reset();
+            }
+            return result;
+        }
+
+        if (key == "return") {
+            // 无候选时按回车直接输出当前英文码。
+            if (!code_.empty() && GetPageCandidates().empty()) {
+                result.committed_text = GetCompositionString();
+                result.committed = true;
                 result.consumed = true;
                 Reset();
             }
@@ -191,6 +209,14 @@ public:
         return GetPageCandidates();
     }
 
+    std::vector<std::pair<std::wstring, std::wstring>> GetCandidatesWithHints() const override {
+        std::vector<std::pair<std::wstring, std::wstring>> result;
+        for (const auto& ch : GetPageCandidates()) {
+            result.emplace_back(ch, GetRemainingCode(ch));
+        }
+        return result;
+    }
+
     std::pair<int, int> GetPageInfo() const override {
         int total = (static_cast<int>(candidates_.size()) + kPageSize - 1) / kPageSize;
         if (total == 0) total = 1;
@@ -212,7 +238,7 @@ public:
     }
 
 private:
-    static constexpr int kPageSize = 9;
+    static constexpr int kPageSize = 6;
 
     std::vector<std::wstring> GetExactCandidates() const {
         auto it = code_to_chars_.find(Utf8ToWide(code_));
@@ -245,6 +271,25 @@ private:
         }
         int end = std::min(start + kPageSize, static_cast<int>(candidates_.size()));
         return std::vector<std::wstring>(candidates_.begin() + start, candidates_.begin() + end);
+    }
+
+    // 返回该字在当前输入码下的剩余编码提示，优先取最长的完整编码。
+    std::wstring GetRemainingCode(const std::wstring& ch) const {
+        auto it = char_to_codes_.find(ch);
+        if (it == char_to_codes_.end()) {
+            return {};
+        }
+        std::wstring prefix = Utf8ToWide(code_);
+        std::wstring best;
+        for (const auto& code : it->second) {
+            if (code.find(prefix) == 0 && code.length() > best.length()) {
+                best = code;
+            }
+        }
+        if (best.empty() || best.length() <= prefix.length()) {
+            return {};
+        }
+        return best.substr(prefix.length());
     }
 
     void UpdateCandidates() {

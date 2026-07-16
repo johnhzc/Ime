@@ -31,6 +31,9 @@ public:
     // Get current candidates (first page)
     virtual std::vector<std::wstring> GetCandidates() const = 0;
 
+    // Get current candidates with their remaining Wubi code hints, e.g. {"工", "aaa"}.
+    virtual std::vector<std::pair<std::wstring, std::wstring>> GetCandidatesWithHints() const = 0;
+
     // Get current page info (page_index, total_pages)
     virtual std::pair<int, int> GetPageInfo() const = 0;
 

@@ -148,14 +148,32 @@ void CandidateWindow::MoveTo(int x, int y) {
     if (!hwnd_) return;
 
     int s_padding = Scale(padding_);
-    int s_item_width = Scale(item_width_);
     int s_item_height = Scale(item_height_);
+    int s_hint_height = Scale(hint_height_);
     int s_code_height = Scale(code_height_);
     int s_page_height = Scale(page_height_);
+    int s_idx_width = Scale(24);
 
-    int width = s_padding * 2 + static_cast<int>(candidates_.size()) * s_item_width;
-    width = std::max(width, Scale(200));
-    int height = s_padding * 2 + s_code_height + s_item_height + s_page_height;
+    // 固定项宽：序号宽度 + 候选字宽度 + 一个候选字宽度的间隔。
+    // 不再根据剩余提示码长度动态增长，避免窗口随输入越界。
+    HDC hdc = GetDC(hwnd_);
+    int char_width = Scale(24);
+    if (hdc) {
+        HFONT cand_font = CreateImeFont(Scale(24), FW_BOLD);
+        HGDIOBJ old_font = SelectObject(hdc, cand_font);
+        SIZE sz_ch = {};
+        GetTextExtentPoint32W(hdc, L"一", 1, &sz_ch);
+        char_width = sz_ch.cx;
+        SelectObject(hdc, old_font);
+        DeleteObject(cand_font);
+        ReleaseDC(hwnd_, hdc);
+    }
+    item_width_ = s_idx_width + char_width + char_width;  // 序号 + 字 + 一字间隔
+
+    int width = s_padding * 2 + static_cast<int>(candidates_.size()) * item_width_;
+    width = std::max(width, Scale(120));
+    width = std::min(width, Scale(800));  // 异常保护，防止越界
+    int height = s_padding * 2 + s_code_height + s_item_height + s_hint_height + s_page_height;
 
     HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = {};
@@ -173,7 +191,7 @@ void CandidateWindow::MoveTo(int x, int y) {
 }
 
 void CandidateWindow::Update(const std::wstring& composition,
-                             const std::vector<std::wstring>& candidates,
+                             const std::vector<std::pair<std::wstring, std::wstring>>& candidates,
                              int page,
                              int total_pages) {
     composition_ = composition;
@@ -249,52 +267,61 @@ void CandidateWindow::Paint(HDC hdc) {
     SelectObject(hdc, old_brush);
     DeleteObject(border_pen);
 
-    // Composition code
-    HFONT code_font = CreateFontW(Scale(18), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
-    HGDIOBJ old_font = SelectObject(hdc, code_font);
-    SetTextColor(hdc, RGB(0, 120, 212));
     SetBkMode(hdc, TRANSPARENT);
-
     int s_padding = Scale(padding_);
     int s_code_height = Scale(code_height_);
     int s_item_height = Scale(item_height_);
-    int s_item_width = Scale(item_width_);
+    int s_hint_height = Scale(hint_height_);
     int s_page_height = Scale(page_height_);
+    int s_idx_width = Scale(24);
+    int s_item_width = item_width_;  // 已由 MoveTo 计算为物理像素
+
+    // Composition code
+    HFONT code_font = CreateImeFont(Scale(16), FW_BOLD);
+    HGDIOBJ old_font = SelectObject(hdc, code_font);
+    SetTextColor(hdc, RGB(0, 120, 212));
 
     RECT code_rc = {s_padding, s_padding, rc.right - s_padding, s_padding + s_code_height};
     DrawTextW(hdc, composition_.c_str(), -1, &code_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Candidates
-    HFONT cand_font = CreateFontW(Scale(26), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
+    HFONT cand_font = CreateImeFont(Scale(24), FW_BOLD);
+    HFONT hint_font = CreateImeFont(Scale(16), FW_NORMAL);
     SelectObject(hdc, cand_font);
     SetTextColor(hdc, RGB(31, 31, 31));
 
     int y = s_padding + s_code_height;
-    int idx_width = Scale(24);
     for (size_t i = 0; i < candidates_.size(); ++i) {
+        const auto& [ch, hint] = candidates_[i];
         int x = s_padding + static_cast<int>(i) * s_item_width;
 
         // Index
         SetTextColor(hdc, RGB(0, 120, 212));
         std::wstringstream idx_ss;
         idx_ss << (i + 1) << L".";
-        RECT idx_rc = {x, y, x + idx_width, y + s_item_height};
+        RECT idx_rc = {x, y, x + s_idx_width, y + s_item_height};
         DrawTextW(hdc, idx_ss.str().c_str(), -1, &idx_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
         // Character
         SetTextColor(hdc, RGB(31, 31, 31));
-        RECT char_rc = {x + idx_width, y, x + s_item_width, y + s_item_height};
-        DrawTextW(hdc, candidates_[i].c_str(), -1, &char_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        SIZE sz_ch = {};
+        GetTextExtentPoint32W(hdc, ch.c_str(), static_cast<int>(ch.length()), &sz_ch);
+        RECT char_rc = {x + s_idx_width, y, x + s_idx_width + sz_ch.cx, y + s_item_height};
+        DrawTextW(hdc, ch.c_str(), -1, &char_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+        // Remaining code hint (drawn below the candidate character)
+        if (!hint.empty()) {
+            SelectObject(hdc, hint_font);
+            SetTextColor(hdc, RGB(102, 102, 102));
+            int hint_y = y + s_item_height;
+            RECT hint_rc = {x + s_idx_width, hint_y, x + s_item_width - Scale(4), hint_y + s_hint_height};
+            DrawTextW(hdc, hint.c_str(), -1, &hint_rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, cand_font);
+        }
     }
 
     // Page info
-    HFONT page_font = CreateFontW(Scale(14), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
+    HFONT page_font = CreateImeFont(Scale(12), FW_NORMAL);
     SelectObject(hdc, page_font);
     SetTextColor(hdc, RGB(102, 102, 102));
     std::wstringstream page_ss;
@@ -306,6 +333,7 @@ void CandidateWindow::Paint(HDC hdc) {
     SelectObject(hdc, old_font);
     DeleteObject(code_font);
     DeleteObject(cand_font);
+    DeleteObject(hint_font);
     DeleteObject(page_font);
 }
 
@@ -313,9 +341,11 @@ int CandidateWindow::HitTest(int x, int y) const {
     int s_padding = Scale(padding_);
     int s_code_height = Scale(code_height_);
     int s_item_height = Scale(item_height_);
-    int s_item_width = Scale(item_width_);
+    int s_hint_height = Scale(hint_height_);
+    // item_width_ 在 MoveTo 中已按 DPI 缩放为物理像素。
+    int s_item_width = item_width_;
     int y_start = s_padding + s_code_height;
-    if (y < y_start || y > y_start + s_item_height) return -1;
+    if (y < y_start || y > y_start + s_item_height + s_hint_height) return -1;
     int index = (x - s_padding) / s_item_width;
     if (index >= 0 && index < static_cast<int>(candidates_.size())) {
         return index;

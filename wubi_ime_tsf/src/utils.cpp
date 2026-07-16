@@ -140,4 +140,19 @@ HMODULE GetCurrentModule() {
     return module;
 }
 
+HFONT CreateImeFont(int height, int weight) {
+    // Microsoft YaHei UI 是 Windows 10/11 默认中文字体，字库兼容性最好。
+    return CreateFontW(
+        height,
+        0, 0, 0,
+        weight,
+        FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY,
+        DEFAULT_PITCH | FF_SWISS,
+        L"Microsoft YaHei UI");
+}
+
 }  // namespace wubi_tsf

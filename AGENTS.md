@@ -183,8 +183,9 @@ DLL 导出符号：`DllGetClassObject`、`DllCanUnloadNow`、`DllRegisterServer`
 | `factory.cpp/.h` | `ClassFactory` | COM 类工厂，创建 `TextService` 实例 |
 | `text_service.cpp/.h` | `TextService`、`CompositionEditSession`、`RequestCompositionEditSession` | TSF 文本服务核心：激活/反激活、按键处理、合成更新/提交、候选窗更新 |
 | `engine.cpp/.h` | `ImeEngine`（抽象接口）、`WubiEngine`（实现）、`ProcessKeyResult` | 编码引擎：加载 JSON、按键处理、候选分页、简码、四码自动上屏 |
-| `candidate_window.cpp/.h` | `CandidateWindow` | GDI 自绘候选窗口；创建/显示/移动/绘制/点击选词；DPI 缩放 |
-| `utils.cpp/.h` | `RuntimeLog`、`GetModulePath`、`GetModuleDirectory`、`GetCaretPosition`、`SetInstanceHandle` | 运行时日志、DLL 路径、插入符位置 |
+| `candidate_window.cpp/.h` | `CandidateWindow` | GDI 自绘候选窗口；统一字体；显示候选字及其剩余编码提示；创建/显示/移动/绘制/点击选词；DPI 缩放 |
+| `utils.cpp/.h` | `RuntimeLog`、`GetModulePath`、`GetModuleDirectory`、`GetCaretPosition`、`SetInstanceHandle`、`CreateImeFont` | 运行时日志、DLL 路径、插入符位置、统一字体创建 |
+| `lang_bar_item.cpp/.h` | `LangBarItem` | 系统语言栏中/英文状态按钮；点击切换 |
 | `resource.rc` | 版本信息 | DLL 资源 |
 | `WubiIME_TSF.def` | 导出符号 | DLL 导出 |
 
@@ -311,11 +312,14 @@ python build.py
 |------|-----------------|--------------|
 | 激活/关闭热键 | `Ctrl+Alt+W` | 由系统语言栏/输入法切换控制 |
 | 中英文切换 | 单独按 `Shift` | 单独按 `Shift` |
-| 候选选择 | 数字键 `1-9` 或空格选第一个 | 数字键 `1-9` 或空格选第一个 |
+| 候选选择 | 数字键 `1-9` 或空格选第一个 | 数字键 `1-6` 或空格选第一个 |
 | 翻页 | `PageUp`/`PageDown` 或 `+`/`-` | `PageUp`/`PageDown` 或 `[`/`]` 或 `,`/`.` |
 | 取消输入 | `Esc` 或退格清空编码 | `Esc` 或退格清空编码 |
-| 每页候选数 | 固定 9 个 | 固定 9 个 |
-| 四码唯一自动上屏 | 输入满 4 位且精确匹配唯一候选时自动提交 | 输入满 4 位且精确匹配唯一候选时自动提交 |
+| 每页候选数 | 固定 9 个 | 固定 6 个 |
+| 四码自动上屏 | 输入满 4 位且精确匹配唯一候选时自动提交 | 输入满 4 位且有候选时直接提交第一个候选，支持连续敲击连续出字 |
+| 满码错误处理 | 无 | 满 4 位无候选时保留英文编码；此时按空格或回车直接输出英文 |
+| 编码提示 | 无 | 候选字下方显示剩余编码（字号与编码行一致），如输入 `a` 时首个候选显示 `工` 下方 `aaa` |
+| 中/英文状态指示 | 浮动状态窗显示 `中`/`英` | 系统语言栏按钮显示 `中`/`英`，点击可切换 |
 | 编码键 | 仅 `a-z`（输入时统一小写处理） | 仅 `a-z`（输入时统一小写处理） |
 
 > 注意：TSF 版本当前实际代码中翻页键为 `[`/`]` 和 `,`/`.`，与 README 中描述的 `+`/`-` 不一致。修改时请同步更新文档。

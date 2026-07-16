@@ -6,6 +6,7 @@
 
 #include "candidate_window.h"
 #include "common.h"
+#include "lang_bar_item.h"
 
 namespace wubi_tsf {
 
@@ -78,6 +79,7 @@ private:
 
     std::unique_ptr<ImeEngine> engine_;
     std::unique_ptr<CandidateWindow> candidate_window_;
+    std::unique_ptr<LangBarItem> lang_bar_item_;
 
     bool active_ = false;
 };
