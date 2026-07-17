@@ -17,8 +17,8 @@ public:
     enum class Mode { Update, Commit };
 
     CompositionEditSession(TextService* service, ITfContext* context,
-                           const std::wstring& text, Mode mode)
-        : service_(service), context_(context), text_(text), mode_(mode) {
+                           const std::wstring& text, Mode mode, bool clear_text = false)
+        : service_(service), context_(context), text_(text), mode_(mode), clear_text_(clear_text) {
         context_->AddRef();
     }
     ~CompositionEditSession() { context_->Release(); }
@@ -102,13 +102,14 @@ public:
             hr = service_->composition_->GetRange(&range);
             if (SUCCEEDED(hr) && range) {
                 // For commit with non-empty text, replace the composition content.
-                // For empty commit (e.g. Esc cleared the code), just end the composition
-                // without replacing, to avoid deleting application text.
-                if (!text_.empty() || mode_ == Mode::Update) {
+                // For empty commit, only clear the composition text when explicitly
+                // requested (e.g. backspace deleting the last code character). This
+                // preserves application text for cancel operations like Esc.
+                if (!text_.empty() || mode_ == Mode::Update || clear_text_) {
                     hr = range->SetText(ec, 0, text_.c_str(),
                                         static_cast<LONG>(text_.length()));
-                    RuntimeLog(L"[DoEditSession] SetText hr=0x%08X len=%d", hr,
-                               static_cast<int>(text_.length()));
+                    RuntimeLog(L"[DoEditSession] SetText hr=0x%08X len=%d clear=%d", hr,
+                               static_cast<int>(text_.length()), clear_text_);
                 }
 
                 if (mode_ == Mode::Commit) {
@@ -170,15 +171,17 @@ private:
     ITfContext* context_ = nullptr;
     std::wstring text_;
     Mode mode_ = Mode::Update;
+    bool clear_text_ = false;
 };
 
 HRESULT RequestCompositionEditSession(TextService* service, ITfContext* context,
                                       const std::wstring& text,
-                                      CompositionEditSession::Mode mode) {
+                                      CompositionEditSession::Mode mode,
+                                      bool clear_text = false) {
     if (!context) return E_INVALIDARG;
 
     CompositionEditSession* session =
-        new (std::nothrow) CompositionEditSession(service, context, text, mode);
+        new (std::nothrow) CompositionEditSession(service, context, text, mode, clear_text);
     if (!session) return E_OUTOFMEMORY;
 
     HRESULT hr_session = S_OK;
@@ -446,13 +449,13 @@ IFACEMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM
         if (key_name == "shift" && !engine_->IsChineseMode()) {
             // 切换到英文模式时清空当前合成串与候选窗。
             engine_->Reset();
-            HRESULT hr = EndComposition(context);
+            HRESULT hr = EndComposition(context, true);
             RuntimeLog(L"[OnKeyDown] EndComposition after shift-to-en hr=0x%08X", hr);
             if (candidate_window_) {
                 candidate_window_->Hide();
             }
         } else if (engine_->GetCompositionString().empty()) {
-            HRESULT hr = EndComposition(context);
+            HRESULT hr = EndComposition(context, true);
             RuntimeLog(L"[OnKeyDown] EndComposition hr=0x%08X", hr);
         } else {
             HRESULT hr = UpdateComposition(context, engine_->GetCompositionString());
@@ -621,12 +624,12 @@ HRESULT TextService::StartComposition(ITfContext* context) {
     return RequestCompositionEditSession(this, context, L"", CompositionEditSession::Mode::Update);
 }
 
-HRESULT TextService::EndComposition(ITfContext* context) {
+HRESULT TextService::EndComposition(ITfContext* context, bool clear_text) {
     if (!context) return E_INVALIDARG;
     if (!composition_) return S_OK;
 
     CompositionEditSession* session =
-        new (std::nothrow) CompositionEditSession(this, context, L"", CompositionEditSession::Mode::Commit);
+        new (std::nothrow) CompositionEditSession(this, context, L"", CompositionEditSession::Mode::Commit, clear_text);
     if (!session) return E_OUTOFMEMORY;
 
     // Passing an empty commit session will end the existing composition.

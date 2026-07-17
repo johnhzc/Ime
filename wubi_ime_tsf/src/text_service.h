@@ -60,7 +60,7 @@ private:
     HRESULT UninitKeyEventSink();
 
     HRESULT StartComposition(ITfContext* context);
-    HRESULT EndComposition(ITfContext* context);
+    HRESULT EndComposition(ITfContext* context, bool clear_text = false);
     HRESULT UpdateComposition(ITfContext* context, const std::wstring& text);
     HRESULT CommitText(ITfContext* context, const std::wstring& text);
 

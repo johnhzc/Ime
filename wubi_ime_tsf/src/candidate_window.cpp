@@ -154,21 +154,32 @@ void CandidateWindow::MoveTo(int x, int y) {
     int s_page_height = Scale(page_height_);
     int s_idx_width = Scale(24);
 
-    // 固定项宽：序号宽度 + 候选字宽度 + 一个候选字宽度的间隔。
-    // 不再根据剩余提示码长度动态增长，避免窗口随输入越界。
+    // 按当前页每个候选的实际内容测量宽度，避免长词组与下一候选重叠。
     HDC hdc = GetDC(hwnd_);
-    int char_width = Scale(24);
+    int max_content_width = Scale(24);
     if (hdc) {
         HFONT cand_font = CreateImeFont(Scale(24), FW_BOLD);
+        HFONT hint_font = CreateImeFont(Scale(16), FW_NORMAL);
         HGDIOBJ old_font = SelectObject(hdc, cand_font);
-        SIZE sz_ch = {};
-        GetTextExtentPoint32W(hdc, L"一", 1, &sz_ch);
-        char_width = sz_ch.cx;
+        for (const auto& [ch, hint] : candidates_) {
+            SIZE sz_ch = {};
+            GetTextExtentPoint32W(hdc, ch.c_str(), static_cast<int>(ch.length()), &sz_ch);
+            int content_width = sz_ch.cx;
+            if (!hint.empty()) {
+                SelectObject(hdc, hint_font);
+                SIZE sz_hint = {};
+                GetTextExtentPoint32W(hdc, hint.c_str(), static_cast<int>(hint.length()), &sz_hint);
+                content_width = std::max(content_width, static_cast<int>(sz_hint.cx));
+                SelectObject(hdc, cand_font);
+            }
+            max_content_width = std::max(max_content_width, content_width);
+        }
         SelectObject(hdc, old_font);
         DeleteObject(cand_font);
+        DeleteObject(hint_font);
         ReleaseDC(hwnd_, hdc);
     }
-    item_width_ = s_idx_width + char_width + char_width;  // 序号 + 字 + 一字间隔
+    item_width_ = s_idx_width + max_content_width + Scale(8);  // 序号 + 内容 + 间隔
 
     int width = s_padding * 2 + static_cast<int>(candidates_.size()) * item_width_;
     width = std::max(width, Scale(120));
