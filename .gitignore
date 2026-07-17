@@ -44,4 +44,8 @@ wubi_ime_tsf/build6/
 wubi_ime_tsf/build7/
 wubi_ime_tsf/build8/
 wubi_ime_tsf/build9/
+wubi_ime_tsf/build_test/
 wubi_ime_tsf/scripts/latest_build_dir.txt
+
+# Runtime logs
+debug/*.txt
